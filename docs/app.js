@@ -333,6 +333,7 @@ $('#spin').addEventListener('click', e => { S.auto = !S.auto; e.currentTarget.cl
 /* keyboard equivalents */
 addEventListener('keydown', e => {
   const t = e.target;
+  if ($('#content-dialog').open || $('#photo-dialog').open) return;
   if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
   const step = 0.12;
   switch (e.key) {
@@ -434,9 +435,19 @@ function applyFeature(f) {
 function toggleFeat(open) { const p = $('#features'); const o = open ?? !p.classList.contains('open'); p.classList.toggle('open', o); $('#feat-toggle').setAttribute('aria-expanded', o); $('#feat-toggle').textContent = o ? 'Close' : 'Features'; }
 $('#feat-toggle').addEventListener('click', () => toggleFeat());
 
+const COMPONENT_FACTS = {
+  oled: 'The manufacturer describes prompts for Bitcoin, Lightning and Nostr; this display is a demo.',
+  qr: 'The manufacturer says the scanner reads invoices, Wi-Fi and node codes; inverted or coloured codes require enabling.',
+  battery: 'The manufacturer advertises up to three hours of continuous use and about 35 minutes to charge; the capacity discrepancy is unresolved.',
+  sd: 'The manufacturer says the SD card stores headers and encrypted wallet data and supports offline firmware updates. Recovery is not explained in the FAQ.',
+  esp32: 'The manufacturer describes direct Bitcoin peer-to-peer connections and SPV header verification, not full-node validation.',
+  buttons: 'The manufacturer describes PIN and decoy mode, but its descriptions of their interaction differ.',
+  buzzer: 'The manufacturer says sound can be switched on or off in settings.',
+  shell: 'The manufacturer publishes enclosure files and assembly specifications.'
+};
 function showInfo(h, { pinned = false, preview = false } = {}) {
   $('#info-link').hidden = true;
-  $('#info-t').textContent = h.t; $('#info-s').textContent = h.s; $('#info-d').textContent = h.d;
+  $('#info-t').textContent = h.t; $('#info-s').textContent = h.s; $('#info-d').textContent = h.d + (COMPONENT_FACTS[h.id] ? ' ' + COMPONENT_FACTS[h.id] : '');
   $('#info').hidden = false;
   $('#info').classList.toggle('pinned', pinned);
   $('#info').classList.toggle('preview', preview);

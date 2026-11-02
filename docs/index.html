@@ -9,6 +9,8 @@
 <meta property="og:title" content="Wesatoshis Card · Interactive 3D">
 <meta property="og:description" content="A pocket-sized Bitcoin terminal. Explore the hardware in 3D — outside, inside and exploded.">
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="panels.css">
+<link rel="icon" href="assets/logo_ws.png">
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
@@ -88,12 +90,20 @@
 
     <div id="loader" class="loader"><div class="bar"><i id="bar"></i></div><p id="loader-t">Loading 3D model…</p></div>
     <noscript><p class="nojs">This page needs JavaScript and WebGL to show the 3D model.</p></noscript>
-    <a class="scroll-cue" href="#story" aria-label="Scroll to the story">Scroll ↓</a>
+    <nav class="content-launchers" aria-label="Product information">
+      <button type="button" data-open-panel="overview">Overview</button>
+      <button type="button" data-open-panel="specs">Specs</button>
+      <button type="button" data-open-panel="photos">Photos</button>
+      <button type="button" data-open-panel="faq">FAQ <span>41</span></button>
+      <button type="button" data-open-panel="notes">Sources</button>
+    </nav>
   </section>
 
   <dialog id="photo-dialog" aria-labelledby="photo-dialog-caption"><button id="photo-dialog-close" aria-label="Close photo">×</button><img id="photo-dialog-img" alt=""><p id="photo-dialog-caption"></p></dialog>
 
   <!-- ============ CONTENT ============ -->
+  <dialog id="content-dialog" aria-labelledby="content-title">
+  <header class="panel-header"><h2 id="content-title">Product information</h2><button id="content-close" type="button" aria-label="Close product information">×</button></header>
   <main id="content">
 
     <section id="story" class="sec">
@@ -296,8 +306,10 @@
     </footer>
 
   </main>
+  </dialog>
 </div>
 
+<script src="panels.js"></script>
 <script type="module" src="app.js"></script>
 </body>
 </html>
