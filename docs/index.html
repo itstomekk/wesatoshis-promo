@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Wesatoshis Card · Interactive 3D</title>
+<meta name="description" content="Interactive 3D view of the Wesatoshis decentralized Bitcoin card — outside, inside and exploded — plus the product story, specifications and real photos.">
+<meta name="theme-color" content="#0a0a0b">
+<meta property="og:title" content="Wesatoshis Card · Interactive 3D">
+<meta property="og:description" content="A pocket-sized Bitcoin terminal. Explore the hardware in 3D — outside, inside and exploded.">
+<link rel="stylesheet" href="style.css">
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+
+<div id="page">
+
+  <!-- ============ HERO: interactive 3D stage ============ -->
+  <section id="stage" class="stage" aria-label="Interactive 3D model of the Wesatoshis card">
+    <canvas id="gl" aria-label="Interactive 3D model of the Wesatoshis card"></canvas>
+
+    <header class="brand">
+      <div class="mark">
+        <svg class="hood" viewBox="4 6 56 54" aria-hidden="true" focusable="false">
+          <path class="hood-shape" fill-rule="evenodd" d="M6 58V30C6 14.6 13.8 8 32 8s26 6.6 26 22v28ZM10 39v12h44V39Z"/>
+          <path class="hood-shape" d="M17 39v2a5 5 0 0 0 10 0v-2ZM37 39v2a5 5 0 0 0 10 0v-2Z"/>
+          <ellipse class="hood-eye" cx="22" cy="43.6" rx="3.2" ry="1.9"/>
+          <ellipse class="hood-eye" cx="42" cy="43.6" rx="3.2" ry="1.9"/>
+        </svg>
+        <b>WESATOSHIS</b><i>Card</i>
+      </div>
+      <p class="tag">A decentralized Bitcoin card · interactive 3D</p>
+    </header>
+
+    <div class="hero-copy">
+      <h1>Spend bitcoin with a card.<br>Not an app.</h1>
+      <a class="btn" href="https://wesatoshis.com/" target="_blank" rel="noopener">Join the waiting list ↗</a>
+    </div>
+
+    <div id="hotspots" aria-live="polite"></div>
+    <div class="hint">Drag to orbit · scroll to zoom · match an angle to reveal the real photo</div>
+
+    <aside id="info" class="info" hidden>
+      <button class="x" aria-label="Close" id="info-x">×</button>
+      <span class="pin-dot" aria-hidden="true" title="Pinned">📌</span>
+      <h3 id="info-t"></h3><em id="info-s"></em><p id="info-d"></p>
+    </aside>
+
+    <div id="photo-overlay" class="photo" hidden aria-live="polite">
+      <button class="x" aria-label="Hide photo" id="photo-x">×</button>
+      <span class="photo-badge">📷 Real photo</span>
+      <img id="photo-img" alt="" src="">
+      <p id="photo-cap"></p>
+    </div>
+
+    <div id="explain" class="explain" aria-hidden="true">
+      <h3 id="explain-t"></h3>
+      <p id="explain-d"></p>
+    </div>
+
+    <button id="feat-toggle" class="feat-toggle" aria-expanded="false" aria-controls="features">Features</button>
+    <aside id="features" class="features" aria-label="Features">
+      <h2>Everything in your pocket</h2>
+      <p class="lead">Credit-card sized, open hardware, no accounts. Tap a feature to see where it lives — and what it does.</p>
+      <ul id="feat-list"></ul>
+      <div class="cta">
+        <a class="btn" href="https://wesatoshis.com/" target="_blank" rel="noopener">wesatoshis.com ↗</a>
+        <a class="ghost" href="https://wesatoshis.com/enclosure/" target="_blank" rel="noopener">Print the enclosure ↗</a>
+      </div>
+      <p class="fine">3D model built from the published open-hardware CAD (enclosure STL + STEP board). Battery, QR-scanner and some components are approximated. Screen content is a demo.</p>
+    </aside>
+
+    <nav class="dock" aria-label="View controls">
+      <div class="seg" role="group" aria-label="View preset">
+        <button data-mode="outside" class="on">Outside</button>
+        <button data-mode="inside">Inside</button>
+        <button data-mode="exploded">Exploded</button>
+      </div>
+      <label class="slider"><span>Explode</span>
+        <input id="explode" type="range" min="0" max="100" value="0" aria-label="Explode amount">
+      </label>
+      <div class="tools">
+        <button id="flip" title="View the other side">⟲ <span>Flip</span></button>
+        <button id="labels" class="on" title="Toggle labels">Labels</button>
+        <button id="spin" class="on" title="Auto-rotate">Auto</button>
+      </div>
+    </nav>
+
+    <div id="loader" class="loader"><div class="bar"><i id="bar"></i></div><p id="loader-t">Loading 3D model…</p></div>
+    <noscript><p class="nojs">This page needs JavaScript and WebGL to show the 3D model.</p></noscript>
+    <a class="scroll-cue" href="#story" aria-label="Scroll to the story">Scroll ↓</a>
+  </section>
+
+  <!-- ============ CONTENT ============ -->
+  <main id="content">
+
+    <section id="story" class="sec">
+      <div class="wrap">
+        <h2>The <em>device</em></h2>
+        <p class="lede">A pocket-sized Bitcoin computer, built to verify, connect and protect without a custodian — your keys stay on the card. Four tactile buttons, a display, a scanner and a battery — everything on the card itself.</p>
+        <div class="stats">
+          <div class="stat"><b>1000&nbsp;mAh</b><span>battery <i>(advertised)</i></span></div>
+          <div class="stat"><b>~35&nbsp;min</b><span>full charge</span></div>
+          <div class="stat"><b>3&nbsp;hrs</b><span>continuous use</span></div>
+          <div class="stat"><b>0</b><span>accounts needed</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="how" class="sec alt">
+      <div class="wrap">
+        <h2>How a payment works</h2>
+        <ol class="steps">
+          <li><span class="n">01</span><h3>Scan</h3><p>The card's built-in scanner reads the merchant's Lightning invoice.</p></li>
+          <li><span class="n">02</span><h3>Confirm</h3><p>Check the amount on the card's own screen, then approve it.</p></li>
+          <li><span class="n">03</span><h3>Done</h3><p>The sats settle over Lightning in seconds. No phone, no app.</p></li>
+        </ol>
+      </div>
+    </section>
+
+    <section id="capabilities" class="sec">
+      <div class="wrap">
+        <h2>What the card does</h2>
+        <p class="sub">Sourced from wesatoshis.com and its FAQ. Open-hardware card; screen content on this page is a demo.</p>
+        <div class="grid" id="cap-grid">
+          <article><h3>Native Bitcoin</h3><p>Speaks the Bitcoin protocol natively and broadcasts directly on mainnet over peer-to-peer connections — no Electrum server.</p></article>
+          <article><h3>Lightning (BOLT11)</h3><p>Pay Lightning invoices directly from the card, using your own node or your wallet balance.</p></article>
+          <article><h3>Nostr &amp; zaps</h3><p>A built-in Nostr client: pair Nostr Wallet Connect to pay invoices and zap friends.</p></article>
+          <article><h3>QR scanning</h3><p>A dedicated scanner chip reads invoices, Wi-Fi and node-connection codes on the fly — standard, inverted or coloured.</p></article>
+          <article><h3>Your own node</h3><p>Connect to a home Bitcoin node via a <code>btcnode:</code> QR code. Full SPV verification.</p></article>
+          <article><h3>PIN &amp; decoy mode</h3><p>A configurable PIN locks the card; a wrong PIN opens a playable game instead of your data.</p></article>
+          <article><h3>SD card</h3><p>Stores SPV headers and your encrypted wallet. Firmware updates install offline via SD.</p></article>
+          <article><h3>Open hardware</h3><p>Download the enclosure files and print your own case in your preferred materials and colours.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section id="more" class="sec">
+      <div class="wrap">
+        <h2>More capabilities</h2>
+        <p class="sub">Additional features described by the manufacturer (wesatoshis.com FAQ). Not independently verified here.</p>
+        <div class="grid" id="more-grid">
+          <article><h3>Auth-code 2FA</h3><p>Use the card as a two-factor device for your AuthCodes.</p></article>
+          <article><h3>DOCPROOF</h3><p>Embeds a SHA-256 hash as proof of existence on the blockchain, following the DOCPROOF protocol.</p></article>
+          <article><h3>Block tracking</h3><p>Tracks new blocks in real time, including who mined each and per-block stats.</p></article>
+          <article><h3>Mempool &amp; RBF</h3><p>Monitors unconfirmed mempool transactions and detects Replace-By-Fee (RBF) transactions.</p></article>
+          <article><h3>Testnet &amp; signet</h3><p>Switch the card to Testnet or Signet for testing.</p></article>
+          <article><h3>Sound</h3><p>Audible feedback, switchable on or off in settings.</p></article>
+          <article><h3>Secure element</h3><p>A secure element is used primarily to generate a new seed phrase during wallet setup.</p></article>
+          <article><h3>Offline updates</h3><p>Firmware updates install offline via the SD card.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section id="photos" class="sec alt">
+      <div class="wrap">
+        <h2>The real thing</h2>
+        <p class="sub">Photographs of the physical card and board. These fade in over the 3D model when your view matches the angle.</p>
+        <div class="photo-grid">
+          <figure>
+            <img src="assets/photos/outside_product.png" alt="Wesatoshis card, front">
+            <figcaption><span class="tag-real">Real photo</span> Finished card, front</figcaption>
+          </figure>
+          <figure>
+            <img src="assets/photos/outside_nwc_in_hand.png" alt="Wesatoshis card in hand showing the Nostr Wallet Connect prompt">
+            <figcaption><span class="tag-real">Real photo</span> Nostr Wallet Connect on the screen</figcaption>
+          </figure>
+          <figure>
+            <img src="assets/photos/pcb_front.jpg" alt="Wesatoshis PCB, display and button side">
+            <figcaption><span class="tag-real">Real photo</span> PCB — display &amp; button side</figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <section id="specs" class="sec">
+      <div class="wrap">
+        <h2>Technical specifications</h2>
+        <p class="sub">As published on wesatoshis.com.</p>
+        <div class="spec-grid">
+          <div class="spec"><h3>Processing &amp; protocol</h3>
+            <dl><dt>Bitcoin protocol</dt><dd>Native Bitcoin protocol</dd><dt>Network</dt><dd>Direct P2P, no Electrum</dd><dt>Validation</dt><dd>SPV (header) verification</dd></dl></div>
+          <div class="spec"><h3>Connectivity</h3>
+            <dl><dt>Lightning</dt><dd>Native BOLT11</dd><dt>Wi-Fi</dt><dd>2.4 GHz 802.11 b/g/n</dd><dt>Nostr</dt><dd>Built-in client</dd></dl></div>
+          <div class="spec"><h3>Power</h3>
+            <dl><dt>Battery</dt><dd>1000 mAh (advertised)</dd><dt>Runtime</dt><dd>up to 3 hrs continuous</dd><dt>Charge time</dt><dd>~35 min full</dd></dl></div>
+          <div class="spec"><h3>Camera &amp; scanning</h3>
+            <dl><dt>Scanner</dt><dd>dedicated hardware chip</dd><dt>Speed</dt><dd>on-the-fly decode</dd><dt>Supported</dt><dd>standard, inverted, coloured</dd></dl></div>
+          <div class="spec"><h3>Storage</h3>
+            <dl><dt>Slot</dt><dd>SD card (1 GB min)</dd><dt>Purpose</dt><dd>SPV headers &amp; encrypted wallet</dd><dt>Updates</dt><dd>offline via SD card</dd></dl></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="hardware" class="sec alt">
+      <div class="wrap">
+        <h2>Open hardware</h2>
+        <p class="lede">The enclosure is published for download: a 3D-printable back chassis and top cover, a CNC cut path for the screen opening, and a STEP board model. Assemble with M2.5 (OD 3.5&nbsp;mm) heat-set brass inserts, M2.5 × 6&nbsp;mm stainless screws and a high-transparency polycarbonate sheet.</p>
+        <div class="cta-row">
+          <a class="btn" href="https://wesatoshis.com/enclosure/" target="_blank" rel="noopener">Download enclosure files ↗</a>
+          <a class="ghost" href="https://wesatoshis.com/flash/" target="_blank" rel="noopener">Flashing tool ↗</a>
+        </div>
+        <p class="fine">The enclosure files and CAD are published by Wesatoshis and reproduced here with the author's permission.</p>
+      </div>
+    </section>
+
+    <section id="notes" class="sec">
+      <div class="wrap">
+        <h2>Notes &amp; sources</h2>
+        <ul class="notes">
+          <li>This page's 3D model, OLED screens and interactions are a <strong>demonstration</strong>, not a live device or wallet.</li>
+          <li>Per the FAQ, the card is a decentralized transfer mechanism — <strong>not a cold-storage replacement</strong>.</li>
+          <li>Product, security and certification claims above are <strong>manufacturer statements</strong> from wesatoshis.com and its FAQ — not independently verified here.</li>
+          <li>SPV verification is <strong>not</strong> the same as running a full node; the card verifies headers, not the entire chain.</li>
+          <li>The battery in the 3D model is an approximation from a reference photograph. The official site advertises 1000&nbsp;mAh while the supplied photo shows a 500&nbsp;mAh cell — the capacity may vary by revision and is not fixed here.</li>
+          <li>The board geometry comes from the published STEP model; enclosure from the published STLs. The supplied "back" PCB photo is not shown because its identity/revision could not be independently verified.</li>
+          <li>CAD geometry is preserved and reproduced with the author's permission.</li>
+        </ul>
+      </div>
+    </section>
+
+    <footer id="colophon">
+      <div class="wrap foot">
+        <div class="foot-brand">
+          <svg class="hood" viewBox="4 6 56 54" aria-hidden="true" focusable="false">
+            <path class="hood-shape" fill-rule="evenodd" d="M6 58V30C6 14.6 13.8 8 32 8s26 6.6 26 22v28ZM10 39v12h44V39Z"/>
+            <path class="hood-shape" d="M17 39v2a5 5 0 0 0 10 0v-2ZM37 39v2a5 5 0 0 0 10 0v-2Z"/>
+            <ellipse class="hood-eye" cx="22" cy="43.6" rx="3.2" ry="1.9"/>
+            <ellipse class="hood-eye" cx="42" cy="43.6" rx="3.2" ry="1.9"/>
+          </svg>
+          <span>Wesatoshis Labs — a decentralized Bitcoin card.<br>No apps. No accounts. Just the protocol.</span>
+        </div>
+        <nav class="foot-links" aria-label="Links">
+          <a href="https://wesatoshis.com/" target="_blank" rel="noopener">Overview</a>
+          <a href="https://wesatoshis.com/enclosure/" target="_blank" rel="noopener">3D Enclosure</a>
+          <a href="https://wesatoshis.com/flash/" target="_blank" rel="noopener">Flashing tool</a>
+          <a href="https://wesatoshis.com/faq/" target="_blank" rel="noopener">FAQ</a>
+          <a href="https://x.com/we_satoshis" target="_blank" rel="noopener">X</a>
+
+        </nav>
+        <p class="foot-fine">Interactive 3D demo — not affiliated with a live wallet. Product information sourced from wesatoshis.com. © 2026 Wesatoshis Labs.</p>
+      </div>
+    </footer>
+
+  </main>
+</div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
