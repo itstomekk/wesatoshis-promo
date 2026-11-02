@@ -101,7 +101,7 @@ const SCREENS = [
   { id: 'node', draw() { tg.font = `bold 10px ${MONO}`; tg.fillText('Connect node', 2, 10); tg.font = `9px ${MONO}`;
       ['btcnode:192.168.1.10', ':8333', 'SPV · no Electrum'].forEach((s, i) => tg.fillText(s, 2, 27 + i * 13)); } },
   { id: 'pin', draw() { tg.font = `bold 10px ${MONO}`; tg.fillText('Enter PIN', 2, 10); tg.font = `bold 21px ${MONO}`;
-      tg.fillText('••••', 4, 42); tg.font = `8px ${MONO}`; tg.fillText('Wrong PIN = game', 4, 58); } },
+      tg.fillText('••••', 4, 42); tg.font = `8px ${MONO}`; tg.fillText('PIN protection', 4, 58); } },
 ];
 let curScreen = 0;
 function drawScreen(i) {
@@ -355,54 +355,49 @@ addEventListener('keydown', e => {
   lastTouch = performance.now(); sway.base = null; tw = null; controls.update();
 });
 function escapeKey() {
+  if ($('#photo-dialog').open) { $('#photo-dialog').close(); return; }
   if (!$('#info').hidden) { closeInfo(); return; }
   if ($('#features').classList.contains('open')) { toggleFeat(false); return; }
   if ($('#explain').classList.contains('show')) { hideExplain(); return; }
   if (!$('#photo-overlay').hidden) dismissPhoto(currentPhotoId);
 }
 
-/* real photos that fade in when the view matches their angle */
+/* Real photographs: nearly face-on reference views; narrow angular windows. */
 const PHOTOS = [
-  { id: 'outside_product', src: 'assets/photos/outside_product.png', alt: 'Wesatoshis card, front', cap: 'Finished card, front', gate: 'front', elc: .873 },
-  { id: 'outside_nwc_in_hand', src: 'assets/photos/outside_nwc_in_hand.png', alt: 'Card in hand showing the Nostr Wallet Connect prompt', cap: 'Nostr Wallet Connect on the screen', gate: 'nwc', elc: .873, bias: .05 },
-  { id: 'pcb_front', src: 'assets/photos/pcb_front.jpg', alt: 'PCB, display and button side', cap: 'PCB — display & button side', gate: 'insideTop', elc: 1.012 },
+  { id: 'outside_product', src: 'assets/photos/outside_product.png', alt: 'Wesatoshis card, front', cap: 'Finished card, front', gate: 'front', az: 0, el: 1.48 },
+  { id: 'outside_nwc_in_hand', src: 'assets/photos/outside_nwc_in_hand.png', alt: 'Card in hand showing the Nostr Wallet Connect prompt', cap: 'Nostr Wallet Connect on the screen', gate: 'nwc', az: .08, el: 1.44 },
+  { id: 'pcb_front', src: 'assets/photos/pcb_front.jpg', alt: 'PCB, display and button side', cap: 'PCB — display & button side', gate: 'insideTop', az: 0, el: 1.48 },
 ];
 const suppressed = {};
+const seenPhotos = new Set();
 let currentPhotoId = null;
 function photoGate(ph) {
-  if (ph.gate === 'front') return S.gF < .35 ? 1 : 0;
-  if (ph.gate === 'nwc') return (S.gF < .35 && curScreen === 1) ? 1 : 0;
-  if (ph.gate === 'insideTop') return S.gF > .55 ? 1 : 0;
-  return 0;
+  if (S.explode > .03 || S.explodeT > .03 || S.flip) return false;
+  if (ph.gate === 'front') return S.mode === 'outside' && S.gF < .1 && curScreen !== 1;
+  if (ph.gate === 'nwc') return S.mode === 'outside' && S.gF < .1 && curScreen === 1;
+  return S.mode === 'inside' && S.gF > .9;
 }
-function photoScore(id) {
-  const ph = PHOTOS.find(p => p.id === id); if (!ph || suppressed[id]) return 0;
-  const gate = photoGate(ph); if (!gate) return 0;
-  const d = Math.abs(sph().el - ph.elc);
-  return gate * clamp(1 - (d - .4) / .35, 0, 1) + (ph.bias || 0);
+function photoScore(id, margin = 1) {
+  const ph = PHOTOS.find(p => p.id === id); if (!ph || !photoGate(ph)) return 0;
+  const p = sph(), da = Math.abs(Math.atan2(Math.sin(p.az-ph.az), Math.cos(p.az-ph.az)));
+  return da < .14 * margin && Math.abs(p.el-ph.el) < .10 * margin ? 1 : 0;
 }
 function dismissPhoto(id) { if (id) suppressed[id] = true; }
 function updatePhoto() {
-  let best = null, bestScore = 0;
-  for (const ph of PHOTOS) {
-    const s = photoScore(ph.id);
-    if (suppressed[ph.id] && s < .12) delete suppressed[ph.id];
-    if (s > bestScore) { bestScore = s; best = ph; }
-  }
+  const best = PHOTOS.find(ph => !suppressed[ph.id] && (currentPhotoId === ph.id || !seenPhotos.has(ph.id)) && photoScore(ph.id, currentPhotoId === ph.id ? 1.2 : 1));
   const el = $('#photo-overlay');
-  if (best && bestScore > .25) {
-    if (currentPhotoId !== best.id) {
-      const img = $('#photo-img');
-      img.src = best.src; img.alt = best.alt; $('#photo-cap').textContent = best.cap;
-    }
-    currentPhotoId = best.id;
-    el.hidden = false; requestAnimationFrame(() => el.classList.add('show'));
-  } else {
-    el.classList.remove('show');
-    if (bestScore < .05 && currentPhotoId !== null) { currentPhotoId = null; setTimeout(() => { if (currentPhotoId === null) el.hidden = true; }, 500); }
-  }
+  if (best) {
+    if (currentPhotoId !== best.id) { $('#photo-img').src = best.src; $('#photo-img').alt = best.alt; $('#photo-cap').textContent = best.cap; }
+    seenPhotos.add(best.id);
+    currentPhotoId = best.id; el.hidden = false; el.classList.add('show');
+  } else { currentPhotoId = null; el.classList.remove('show'); el.hidden = true; }
 }
-$('#photo-x').addEventListener('click', () => { dismissPhoto(currentPhotoId); $('#photo-overlay').classList.remove('show'); $('#photo-overlay').hidden = true; currentPhotoId = null; });
+$('#photo-x').addEventListener('click', () => { dismissPhoto(currentPhotoId); currentPhotoId = null; $('#photo-overlay').hidden = true; });
+$('#photo-open').addEventListener('click', () => {
+  const img = $('#photo-dialog-img'); img.src = $('#photo-img').src; img.alt = $('#photo-img').alt;
+  $('#photo-dialog-caption').textContent = $('#photo-cap').textContent; $('#photo-dialog').showModal();
+});
+$('#photo-dialog-close').addEventListener('click', () => $('#photo-dialog').close());
 
 /* features panel */
 const ICON = {
@@ -415,12 +410,12 @@ const ICON = {
   open: '<path d="M8 6 3 12l5 6M16 6l5 6-5 6M13.500 4l-3 16"/>',
 };
 const FEATURES = [
-  { ic: 'wallet', t: 'Self-custody card', d: 'Holds your keys on the device — no app, no custodial server.', mode: 'inside', focus: 'esp32', exp: ['Self-custody', 'Your keys live on the card itself. It is a transfer tool, not a cold-storage replacement.'] },
+  { ic: 'wallet', t: 'Self-custody card', d: 'The manufacturer says your keys stay on the card.', mode: 'inside', focus: 'esp32', exp: ['Self-custody', 'The manufacturer says your keys stay on the card. It is a transfer tool, not a cold-storage replacement.'] },
   { ic: 'pay', t: 'Native BTC & Lightning', d: 'Send and receive on-chain BTC and pay BOLT11 Lightning invoices.', mode: 'outside', focus: 'oled', screen: 0, exp: ['Bitcoin + Lightning', 'Speaks the Bitcoin protocol natively and pays Lightning invoices directly on the card.'] },
   { ic: 'nostr', t: 'Nostr Wallet Connect & zaps', d: 'A built-in Nostr client pairs NWC and sends zaps.', mode: 'outside', focus: 'oled', screen: 1, exp: ['Nostr on board', 'A built-in Nostr client pairs Nostr Wallet Connect to pay invoices and zap friends.'] },
-  { ic: 'qr', t: 'QR scanning', d: 'The built-in scanner reads invoices, Wi-Fi and node codes on the fly.', mode: 'inside', focus: 'qr', screen: 2, exp: ['Scan to pay', 'A dedicated scanner chip decodes QR codes on the fly — standard, inverted or coloured.'] },
-  { ic: 'node', t: 'Your own node (SPV)', d: 'Connect to a home Bitcoin node via a btcnode: QR code. No Electrum.', mode: 'inside', focus: 'esp32', screen: 3, exp: ['Own your node', 'Connects to your own Bitcoin node with full SPV verification — no Electrum server.'] },
-  { ic: 'pin', t: 'PIN & decoy mode', d: 'A PIN locks the card; a wrong PIN opens a playable game.', mode: 'outside', focus: 'buttons', screen: 4, exp: ['PIN & decoy', 'A configurable PIN guards the card. A wrong PIN opens a game instead of your data.'] },
+  { ic: 'qr', t: 'QR scanning', d: 'The built-in scanner reads invoices, Wi-Fi and node codes on the fly.', mode: 'inside', focus: 'qr', screen: 2, exp: ['Scan to pay', 'A dedicated scanner chip decodes QR codes on the fly — standard codes; inverted or coloured scanning needs enabling.'] },
+  { ic: 'node', t: 'Your own node (SPV)', d: 'Connect to a home Bitcoin node via a btcnode: QR code. No Electrum.', mode: 'inside', focus: 'esp32', screen: 3, exp: ['Own your node', 'Connects to your own Bitcoin node with SPV header verification — no Electrum server.'] },
+  { ic: 'pin', t: 'PIN & decoy mode', d: 'PIN and decoy mode are described by the manufacturer.', mode: 'outside', focus: 'buttons', screen: 4, exp: ['PIN & decoy', 'The manufacturer describes PIN and decoy mode, but its descriptions differ.'] },
   { ic: 'open', t: 'Open hardware', d: 'Download the enclosure files and print your own case.', mode: 'exploded', focus: null, exp: ['Open hardware', 'The enclosure STLs, screen cut path and STEP board model are published for download.'] },
 ];
 FEATURES.forEach((f, i) => {
@@ -432,13 +427,15 @@ let pinUntil = 0;
 function applyFeature(f) {
   if (f.screen != null) { drawScreen(f.screen); pinUntil = performance.now() + 14000; }
   S.flip = f.focus === 'qr' || f.focus === 'esp32';
-  if (f.focus) { setMode(f.mode); setTimeout(() => select(f.focus), 50); } else setMode(f.mode);
+  setMode(f.mode); showInfo({t: f.exp[0], s: 'Manufacturer-described feature', d: f.exp[1]}, {pinned:true});
+  const link = $('#info-link'); link.hidden = false; link.href = f.ic === 'open' ? 'https://wesatoshis.com/enclosure/' : f.ic === 'qr' || f.ic === 'node' ? 'https://wesatoshis.com/qr' : 'https://wesatoshis.com/'; link.textContent = f.ic === 'open' ? 'Explore enclosure files ↗' : f.ic === 'qr' || f.ic === 'node' ? 'Explore QR generator ↗' : 'Explore the card ↗';
   if (f.exp) showExplain(f.exp[0], f.exp[1]);
 }
 function toggleFeat(open) { const p = $('#features'); const o = open ?? !p.classList.contains('open'); p.classList.toggle('open', o); $('#feat-toggle').setAttribute('aria-expanded', o); $('#feat-toggle').textContent = o ? 'Close' : 'Features'; }
 $('#feat-toggle').addEventListener('click', () => toggleFeat());
 
 function showInfo(h, { pinned = false, preview = false } = {}) {
+  $('#info-link').hidden = true;
   $('#info-t').textContent = h.t; $('#info-s').textContent = h.s; $('#info-d').textContent = h.d;
   $('#info').hidden = false;
   $('#info').classList.toggle('pinned', pinned);
@@ -482,10 +479,14 @@ canvas.addEventListener('pointerdown', e => { down = { x: e.clientX, y: e.client
 canvas.addEventListener('pointerup', e => {
   if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 6 || performance.now() - down.t > 450) return;
   const r = canvas.getBoundingClientRect(); const v = new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
-  ray.setFromCamera(v, camera); const hit = ray.intersectObjects([...capMeshes, nodes.screen, nodes.oled_glass, nodes.top_cover], false)[0];
+  ray.setFromCamera(v, camera); const hit = ray.intersectObjects([...capMeshes, nodes.screen, nodes.oled_glass, ...(S.gF > .5 ? [] : [nodes.top_cover])], false)[0];
   if (hit && (capMeshes.includes(hit.object) || hit.object === nodes.screen || hit.object === nodes.oled_glass)) {
+    select(capMeshes.includes(hit.object) ? 'buttons' : 'oled');
     if (capMeshes.includes(hit.object)) press(hit.object);
     drawScreen((curScreen + 1) % SCREENS.length); pinUntil = performance.now() + 9000;
+  } else if (hit && hit.object === nodes.top_cover) { select('cover'); } else {
+    const modelHit = ray.intersectObjects(Object.values(nodes).filter(n => n && n.isMesh && !(n === nodes.top_cover && S.gF > .5) && !(n === nodes.back_shell && S.gB > .5)), false)[0];
+    if (modelHit) { const h = HOT.find(x => nodes[x.node] === modelHit.object); if (h) select(h.id); }
   }
 });
 const pressing = new Map();

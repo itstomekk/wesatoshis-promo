@@ -37,24 +37,19 @@
       <p class="tag">A decentralized Bitcoin card · interactive 3D</p>
     </header>
 
-    <div class="hero-copy">
-      <h1>Spend bitcoin with a card.<br>Not an app.</h1>
-      <a class="btn" href="https://wesatoshis.com/" target="_blank" rel="noopener">Join the waiting list ↗</a>
-    </div>
 
     <div id="hotspots" aria-live="polite"></div>
-    <div class="hint">Drag to orbit · scroll to zoom · match an angle to reveal the real photo</div>
 
     <aside id="info" class="info" hidden>
       <button class="x" aria-label="Close" id="info-x">×</button>
       <span class="pin-dot" aria-hidden="true" title="Pinned">📌</span>
-      <h3 id="info-t"></h3><em id="info-s"></em><p id="info-d"></p>
+      <h3 id="info-t"></h3><em id="info-s"></em><p id="info-d"></p><a id="info-link" href="https://wesatoshis.com/" target="_blank" rel="noopener" hidden>Explore at Wesatoshis ↗</a>
     </aside>
 
     <div id="photo-overlay" class="photo" hidden aria-live="polite">
       <button class="x" aria-label="Hide photo" id="photo-x">×</button>
-      <span class="photo-badge">📷 Real photo</span>
-      <img id="photo-img" alt="" src="">
+      <span class="photo-badge">Photo</span>
+      <button id="photo-open" aria-label="Enlarge matching real photo"><img id="photo-img" alt="" src=""><span>View photo ↗</span></button>
       <p id="photo-cap"></p>
     </div>
 
@@ -69,7 +64,7 @@
       <p class="lead">Credit-card sized, open hardware, no accounts. Tap a feature to see where it lives — and what it does.</p>
       <ul id="feat-list"></ul>
       <div class="cta">
-        <a class="btn" href="https://wesatoshis.com/" target="_blank" rel="noopener">wesatoshis.com ↗</a>
+        <a class="btn" href="https://wesatoshis.com/" target="_blank" rel="noopener">Join the waiting list ↗</a>
         <a class="ghost" href="https://wesatoshis.com/enclosure/" target="_blank" rel="noopener">Print the enclosure ↗</a>
       </div>
       <p class="fine">3D model built from the published open-hardware CAD (enclosure STL + STEP board). Battery, QR-scanner and some components are approximated. Screen content is a demo.</p>
@@ -96,6 +91,8 @@
     <a class="scroll-cue" href="#story" aria-label="Scroll to the story">Scroll ↓</a>
   </section>
 
+  <dialog id="photo-dialog" aria-labelledby="photo-dialog-caption"><button id="photo-dialog-close" aria-label="Close photo">×</button><img id="photo-dialog-img" alt=""><p id="photo-dialog-caption"></p></dialog>
+
   <!-- ============ CONTENT ============ -->
   <main id="content">
 
@@ -118,7 +115,7 @@
         <ol class="steps">
           <li><span class="n">01</span><h3>Scan</h3><p>The card's built-in scanner reads the merchant's Lightning invoice.</p></li>
           <li><span class="n">02</span><h3>Confirm</h3><p>Check the amount on the card's own screen, then approve it.</p></li>
-          <li><span class="n">03</span><h3>Done</h3><p>The sats settle over Lightning in seconds. No phone, no app.</p></li>
+          <li><span class="n">03</span><h3>Done</h3><p>The manufacturer describes using a Lightning node and a smart contract for payment; confirmation arrives via Nostr.</p></li>
         </ol>
       </div>
     </section>
@@ -129,11 +126,11 @@
         <p class="sub">Sourced from wesatoshis.com and its FAQ. Open-hardware card; screen content on this page is a demo.</p>
         <div class="grid" id="cap-grid">
           <article><h3>Native Bitcoin</h3><p>Speaks the Bitcoin protocol natively and broadcasts directly on mainnet over peer-to-peer connections — no Electrum server.</p></article>
-          <article><h3>Lightning (BOLT11)</h3><p>Pay Lightning invoices directly from the card, using your own node or your wallet balance.</p></article>
+          <article><h3>Lightning (BOLT11)</h3><p>Pay BOLT11 invoices using your own Lightning node or your wallet balance. The manufacturer describes a smart contract and another Lightning node.</p></article>
           <article><h3>Nostr &amp; zaps</h3><p>A built-in Nostr client: pair Nostr Wallet Connect to pay invoices and zap friends.</p></article>
-          <article><h3>QR scanning</h3><p>A dedicated scanner chip reads invoices, Wi-Fi and node-connection codes on the fly — standard, inverted or coloured.</p></article>
-          <article><h3>Your own node</h3><p>Connect to a home Bitcoin node via a <code>btcnode:</code> QR code. Full SPV verification.</p></article>
-          <article><h3>PIN &amp; decoy mode</h3><p>A configurable PIN locks the card; a wrong PIN opens a playable game instead of your data.</p></article>
+          <article><h3>QR scanning</h3><p>A dedicated scanner chip reads invoices, Wi-Fi and node-connection codes on the fly — standard codes; inverted or coloured codes require enabling.</p></article>
+          <article><h3>Your own node</h3><p>Connect to a home Bitcoin node via a <code>btcnode:</code> QR code. SPV header verification.</p></article>
+          <article><h3>PIN &amp; decoy mode</h3><p>A configurable PIN and decoy mode are described; the manufacturer’s descriptions of their interaction differ.</p></article>
           <article><h3>SD card</h3><p>Stores SPV headers and your encrypted wallet. Firmware updates install offline via SD.</p></article>
           <article><h3>Open hardware</h3><p>Download the enclosure files and print your own case in your preferred materials and colours.</p></article>
         </div>
@@ -160,7 +157,7 @@
     <section id="photos" class="sec alt">
       <div class="wrap">
         <h2>The real thing</h2>
-        <p class="sub">Photographs of the physical card and board. These fade in over the 3D model when your view matches the angle.</p>
+        <p class="sub">Photographs of the physical card and board. A thumbnail appears near a matching view; select it to enlarge.</p>
         <div class="photo-grid">
           <figure>
             <img src="assets/photos/outside_product.png" alt="Wesatoshis card, front">
@@ -190,7 +187,7 @@
           <div class="spec"><h3>Power</h3>
             <dl><dt>Battery</dt><dd>1000 mAh (advertised)</dd><dt>Runtime</dt><dd>up to 3 hrs continuous</dd><dt>Charge time</dt><dd>~35 min full</dd></dl></div>
           <div class="spec"><h3>Camera &amp; scanning</h3>
-            <dl><dt>Scanner</dt><dd>dedicated hardware chip</dd><dt>Speed</dt><dd>on-the-fly decode</dd><dt>Supported</dt><dd>standard, inverted, coloured</dd></dl></div>
+            <dl><dt>Scanner</dt><dd>dedicated hardware chip</dd><dt>Speed</dt><dd>on-the-fly decode</dd><dt>Supported</dt><dd>standard; inverted and coloured require enabling</dd></dl></div>
           <div class="spec"><h3>Storage</h3>
             <dl><dt>Slot</dt><dd>SD card (1 GB min)</dd><dt>Purpose</dt><dd>SPV headers &amp; encrypted wallet</dd><dt>Updates</dt><dd>offline via SD card</dd></dl></div>
         </div>
@@ -209,6 +206,57 @@
       </div>
     </section>
 
+    <section id="faq" class="sec alt">
+      <div class="wrap">
+        <h2>Questions, answered</h2>
+        <p class="sub">Summarized manufacturer claims, not independently verified. <a href="https://www.wesatoshis.com/faq.json">Official FAQ ↗</a> · <a href="https://www.wesatoshis.com/qr">QR generator ↗</a> · <a href="https://www.wesatoshis.com/flash">Flashing ↗</a> · <a href="https://www.wesatoshis.com/enclosure">Enclosure ↗</a></p>
+        <h3>Purpose and payments</h3>
+        <details data-faq-id="688f2861a5b50"><summary>Is an online card secure?</summary><p>The manufacturer argues that insecure code, rather than being online itself, is the risk. This is a claim, not an independent security assessment.</p></details>
+        <details data-faq-id="688f2861a5b57"><summary>Is this a replacement for cold storage?</summary><p>No. The manufacturer describes it as a decentralized transfer mechanism, not a replacement for cold storage.</p></details>
+        <details data-faq-id="688f2861a5b58"><summary>Does it need a central server?</summary><p>The manufacturer says the device does not depend on a central server and is designed to work while the Bitcoin network exists.</p></details>
+        <details data-faq-id="688f2861a5b59"><summary>What can the card do?</summary><p>The manufacturer describes native BTC and Lightning sending and receiving, blockchain data embedding, and other functions.</p></details>
+        <details data-faq-id="688f2861a5b5d"><summary>Can I pay a Lightning invoice without my own Lightning node?</summary><p>The FAQ says a BOLT11 invoice can be paid using either a home Lightning node or the card wallet balance after depositing BTC.</p></details>
+        <details data-faq-id="688f2861a5b73"><summary>How are Lightning payments made more private?</summary><p>The manufacturer describes locking equivalent BTC in a smart contract and having a random Lightning node pay the invoice, intended to reduce the link between sender and recipient. The claimed privacy is not independently verified.</p></details>
+        <details data-faq-id="688f2861a5b74"><summary>How does the card learn that a payment completed?</summary><p>The FAQ says the paying Lightning node broadcasts payment status via Nostr, which the card receives in real time.</p></details>
+        <details data-faq-id="688f2861a5b75"><summary>Can a Nostr payment confirmation be forged?</summary><p>The manufacturer says confirmation relies on invoice preimage and SHA-256 information and claims authenticity. The FAQ wording does not fully explain the verification procedure; do not treat this as an independently verified guarantee.</p></details>
+        <details data-faq-id="688f2861a5b79"><summary>Which currencies and payment networks are supported?</summary><p>The FAQ lists native BTC and Lightning payments.</p></details>
+        <details data-faq-id="688f2861a5b7e"><summary>Why a card instead of a mobile app?</summary><p>The manufacturer says it wants to avoid dependence on third-party mobile app-store approval.</p></details>
+        <h3>Bitcoin, nodes and network</h3>
+        <details data-faq-id="688f2861a5b5a"><summary>Can it connect to my Bitcoin node?</summary><p>According to the FAQ, a QR code containing node connection information connects it to a home node. The example format is <code>btcnode:127.0.0.1:8333</code>.</p></details>
+        <details data-faq-id="688f2861a5b5b"><summary>Can a node address use a domain name?</summary><p>The FAQ says domains are supported and resolved through DNS.</p></details>
+        <details data-faq-id="688f2861a5b5c"><summary>Does it require Electrum servers?</summary><p>The manufacturer says it uses the native Bitcoin protocol rather than relying on Electrum servers.</p></details>
+        <details data-faq-id="688f2861a5b62"><summary>Why might an iPhone hotspot not connect?</summary><p>The FAQ suggests enabling Maximize Compatibility in Personal Hotspot settings to use the 2.4 GHz band instead of 5 GHz.</p></details>
+        <details data-faq-id="688f2861a5b63"><summary>How many Wi-Fi networks can it remember?</summary><p>The FAQ says up to two networks.</p></details>
+        <details data-faq-id="688f2861a5b68"><summary>Does it have sound?</summary><p>Yes, according to the FAQ; sound can be switched on or off in settings.</p></details>
+        <details data-faq-id="688f2861a5b69"><summary>Does it monitor unconfirmed mempool transactions?</summary><p>The manufacturer says it does.</p></details>
+        <details data-faq-id="688f2861a5b6a"><summary>Can it detect Replace-By-Fee transactions?</summary><p>The manufacturer says it detects RBF transactions.</p></details>
+        <details data-faq-id="688f2861a5b6d"><summary>Can it scan inverted or colored QR codes?</summary><p>The FAQ says yes after scanning an enabling code. <a href="https://www.wesatoshis.com/faq-images/faq-img-698f225e1b9b21.66342669.jpg">Open the manufacturer’s enabling QR code ↗</a>.</p></details>
+        <details data-faq-id="688f2861a5b6e"><summary>Can I use Testnet or Signet?</summary><p>The manufacturer says both testing networks are supported.</p></details>
+        <details data-faq-id="688f2861a5b77"><summary>Is VPN or Tor built in?</summary><p>No. The manufacturer says the chip cannot run them directly, but a hotspot device using VPN or Tor can provide the connection. Actual routing depends on the hotspot configuration.</p></details>
+        <details data-faq-id="693b527049e47"><summary>Can a VPN cause connection problems?</summary><p>The FAQ says some VPNs, including ProtonVPN, may interfere with connectivity or transactions. It suggests temporarily disabling the VPN or switching servers; contact support if problems persist. Disabling a VPN changes your privacy protections.</p></details>
+        <details data-faq-id="69851f05e2463"><summary>How do I create a Wi-Fi QR code?</summary><p>Use the manufacturer’s <a href="https://wesatoshis.com/qr">QR generator ↗</a>.</p></details>
+        <details data-faq-id="698f229e78e4e"><summary>How do I create a btcnode QR code?</summary><p>Use the manufacturer’s <a href="https://wesatoshis.com/qr">QR generator ↗</a> for node connection details.</p></details>
+        <h3>Security, privacy and storage</h3>
+        <details data-faq-id="688f2861a5b61"><summary>Can I set a PIN?</summary><p>The manufacturer says the card supports a PIN.</p></details>
+        <details data-faq-id="688f2861a5b64"><summary>Is there a self-destruction mechanism?</summary><p>The manufacturer says there is one, but this FAQ answer does not explain how it works.</p></details>
+        <details data-faq-id="688f2861a5b65"><summary>What is the SD card for?</summary><p>The manufacturer says it stores blockchain headers from the genesis block onward and encrypted wallet data.</p></details>
+        <details data-faq-id="688f2861a5b66"><summary>What if the SD card is lost or empty?</summary><p>The FAQ says headers are downloaded and verified again, taking about an hour, and a card of at least 1 GB can be used. It does not explain how encrypted wallet data is recovered; do not assume replacing the card restores your wallet. Ask the manufacturer about backups and recovery.</p></details>
+        <details data-faq-id="688f2861a5b70"><summary>Does it use a secure element?</summary><p>The FAQ says a secure element is used primarily to generate a new seed phrase during wallet setup.</p></details>
+        <details data-faq-id="688f2861a5b71"><summary>Is another person’s Wi-Fi safe to use?</summary><p>The manufacturer says sensitive data is not transferred over the network, while noting the Bitcoin protocol is clear text. This is not a guarantee of privacy or safety on untrusted networks.</p></details>
+        <details data-faq-id="68b89cd2a6055"><summary>What is decoy mode?</summary><p>The FAQ says that after a wrong PIN, decoy mode shows a game instead of data. The manufacturer’s homepage describes its interaction with the PIN differently. Ask the manufacturer to clarify before relying on it.</p></details>
+        <h3>Tools and hardware</h3>
+        <details data-faq-id="688f2861a5b5e"><summary>Can it serve as an AuthCodes 2FA device?</summary><p>Yes, according to the manufacturer.</p></details>
+        <details data-faq-id="688f2861a5b5f"><summary>Can it provide blockchain proof of existence?</summary><p>The FAQ says it uses DOCPROOF to embed a SHA-256 hash on the blockchain.</p></details>
+        <details data-faq-id="688f2861a5b60"><summary>Can it track new blocks?</summary><p>The manufacturer says it tracks new blocks in real time, including the miner and detailed block statistics.</p></details>
+        <details data-faq-id="688f2861a5b67"><summary>Can firmware be updated offline?</summary><p>The FAQ says updates can be installed offline using the SD card.</p></details>
+        <details data-faq-id="688f2861a5b6b"><summary>Where do price and fee data come from?</summary><p>The manufacturer claims these are fetched in a decentralized way without a central server, but the FAQ does not explain the mechanism.</p></details>
+        <details data-faq-id="688f2861a5b6c"><summary>Does it have a camera for scanning?</summary><p>The FAQ describes a camera with an embedded chip that detects and processes QR codes on the fly.</p></details>
+        <details data-faq-id="688f2861a5b6f"><summary>What are the battery and charging figures?</summary><p>The FAQ advertises a 1000 mAh battery, up to three hours of continuous operation at full power and about 35 minutes to charge. It advises against using it that long in one session.</p></details>
+        <details data-faq-id="688f2861a5b76"><summary>Does the card run a Nostr client?</summary><p>The FAQ says it has a built-in Nostr client for payment confirmations and decentralized communication.</p></details>
+        <details data-faq-id="688f2861a5b78"><summary>What does the fox icon mean?</summary><p>According to the FAQ, it indicates incoming Nostr traffic.</p></details>
+        <details data-faq-id="6890cdd1c2183"><summary>Can I add friends?</summary><p>The FAQ says you can add friends by their Nostr public key and zap them.</p></details>
+      </div>
+    </section>
     <section id="notes" class="sec">
       <div class="wrap">
         <h2>Notes &amp; sources</h2>

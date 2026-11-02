@@ -216,6 +216,18 @@ input[type=range]::-moz-range-thumb{width:13px;height:13px;border-radius:50%;bac
   .foot{grid-template-columns:1fr}
   .foot-links{justify-content:flex-start}
 }
+/* Compact, touch-friendly controls and accessible enlarged photo */
+.dock{gap:7px;padding:5px 7px}.seg button,.tools button{min-height:44px;padding:7px 9px}.slider input{width:100px}
+#photo-open{display:block;width:100%;padding:0;border:0;background:none;text-align:left}
+#photo-open span{display:block;padding:5px 2px;color:var(--or2);font-weight:700}
+.photo .x{z-index:2;min-width:32px;min-height:32px}.photo-badge{pointer-events:none}
+#photo-dialog{position:fixed;margin:auto;max-width:min(900px,94vw);max-height:92vh;padding:18px;border:1px solid var(--or);border-radius:16px;background:#101013;color:var(--txt)}
+#photo-dialog::backdrop{background:rgba(0,0,0,.85)}
+#photo-dialog img{max-height:75vh;object-fit:contain;margin:auto}
+#photo-dialog p{padding-top:10px}#photo-dialog-close{position:absolute;right:8px;top:8px;min-width:44px;min-height:44px;border:0;border-radius:8px;background:#111d;font-size:25px}
+#faq details{max-width:800px;border-bottom:1px solid var(--line);padding:15px 0}#faq summary{cursor:pointer;font-weight:650;min-height:30px}#faq details p{color:var(--mut);padding:8px 0;line-height:1.55}
+@media (max-width:860px){.photo{top:70px;width:120px}.photo-badge{position:static;display:inline-block;margin-bottom:5px;font-size:9px}.photo .x{right:4px;top:3px}.photo .photo-badge{max-width:75px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
+#info-link{display:inline-block;color:var(--or2);margin-top:8px;font-weight:650}#info-link[hidden]{display:none}
 @media (prefers-reduced-motion:reduce){
   html{scroll-behavior:auto}
   .hs .dot{animation:none}
