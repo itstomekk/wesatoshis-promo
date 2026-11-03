@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Wesatoshis Card · Interactive 3D</title>
-<meta name="description" content="Interactive 3D view of the Wesatoshis decentralized Bitcoin card — outside, inside and exploded — plus the product story, specifications and real photos.">
+<meta name="description" content="Interactive 3D Wesatoshis Bitcoin card with a simulated screen: Lightning via NWC and Arkade, native SPV, Tor, multisig, XMR, Trocador swaps, PSBT and more — plus specs, FAQ and real photos.">
 <meta name="theme-color" content="#0a0a0b">
 <meta property="og:title" content="Wesatoshis Card · Interactive 3D">
 <meta property="og:description" content="A pocket-sized Bitcoin terminal. Explore the hardware in 3D — outside, inside and exploded.">
@@ -36,17 +36,11 @@
         </svg>
         <b>WESATOSHIS</b><i>Card</i>
       </div>
-      <p class="tag">A decentralized Bitcoin card · interactive 3D</p>
+      <p class="tag">A pocket Bitcoin card · interactive 3D</p>
     </header>
 
 
     <div id="hotspots" aria-live="polite"></div>
-
-    <aside id="info" class="info" hidden>
-      <button class="x" aria-label="Close" id="info-x">×</button>
-      <span class="pin-dot" aria-hidden="true" title="Pinned">📌</span>
-      <h3 id="info-t"></h3><em id="info-s"></em><p id="info-d"></p><a id="info-link" href="https://wesatoshis.com/" target="_blank" rel="noopener" hidden>Explore at Wesatoshis ↗</a>
-    </aside>
 
     <div id="photo-overlay" class="photo" hidden aria-live="polite">
       <button class="x" aria-label="Hide photo" id="photo-x">×</button>
@@ -60,56 +54,94 @@
       <p id="explain-d"></p>
     </div>
 
-    <button id="feat-toggle" class="feat-toggle" aria-expanded="false" aria-controls="features">Features</button>
-    <aside id="features" class="features" aria-label="Features">
-      <h2>Everything in your pocket</h2>
-      <p class="lead">Credit-card sized, open hardware, no accounts. Tap a feature to see where it lives — and what it does.</p>
-      <ul id="feat-list"></ul>
+    <button id="feat-toggle" class="feat-toggle" type="button" aria-expanded="false" aria-controls="sidebar">Explore</button>
+    <aside id="sidebar" class="sidebar" aria-labelledby="sb-title" data-view="features">
+      <header class="sb-head">
+        <h2 id="sb-title" tabindex="-1">Features</h2>
+        <button id="sb-close" class="sb-close" type="button" aria-label="Close side panel">×</button>
+      </header>
+      <nav id="sidebar-nav" class="sb-nav" aria-label="Side panel sections">
+        <button type="button" data-open-panel="features" aria-current="true">Features</button>
+        <button type="button" data-open-panel="overview">Overview</button>
+        <button type="button" data-open-panel="specs">Specs</button>
+        <button type="button" data-open-panel="photos">Photos</button>
+        <button type="button" data-open-panel="faq">FAQ <span>41</span></button>
+        <button type="button" data-open-panel="notes">Sources</button>
+      </nav>
+      <div id="sb-body" class="sb-body">
+        <section id="features" class="sb-view features" aria-label="Features">
+          <section class="try" aria-labelledby="try-h">
+            <h3 id="try-h">Try the simulated card</h3>
+            <p class="try-note">Click the card’s own buttons in the 3D view, or use these. The screen is a <strong>simulation</strong>: nothing is scanned, connected, paid or sent.</p>
+            <div id="device-pad" role="group" aria-label="Simulated card buttons">
+              <button type="button" data-key="up" aria-label="UP button"><span aria-hidden="true">▲</span><small>UP</small></button>
+              <button type="button" data-key="down" aria-label="DOWN button"><span aria-hidden="true">▼</span><small>DOWN</small></button>
+              <button type="button" data-key="back" aria-label="BACK button"><span aria-hidden="true">◀</span><small>BACK</small></button>
+              <button type="button" data-key="ok" aria-label="OK button"><span aria-hidden="true">●</span><small>OK</small></button>
+            </div>
+            <p id="screen-now" class="screen-now"></p>
+            <p class="screen-tip"><span id="screen-tip-text"></span> <a href="https://wesatoshis.com/" target="_blank" rel="noopener">wesatoshis.com ↗</a></p>
+            <p id="sim-live" class="sr-only" role="status" aria-live="polite"></p>
+          </section>
+          <p class="lead">Credit-card sized, open hardware. Select a feature to see where it lives and what it does. Items badged “Producer information” are newer than the public FAQ.</p>
+          <ul id="feat-list"></ul>
+          <p class="status-link"><button type="button" class="linkish" data-open-panel="overview" data-scroll="status">See all 14 features and where each comes from →</button></p>
+          <section class="screens" aria-labelledby="screens-h">
+            <h3 id="screens-h">Jump to a simulated screen</h3>
+            <p class="screen-now">Each screen is a simulation based on a feature the manufacturer documents. You can also reach all of them with the card’s buttons.</p>
+            <div id="screen-picker" role="group" aria-label="Choose a simulated OLED screen"></div>
+          </section>
       <div class="cta">
         <a class="btn" href="https://wesatoshis.com/" target="_blank" rel="noopener">Join the waiting list ↗</a>
         <a class="ghost" href="https://wesatoshis.com/enclosure/" target="_blank" rel="noopener">Print the enclosure ↗</a>
       </div>
       <p class="fine">3D model built from the published open-hardware CAD (enclosure STL + STEP board). Battery, QR-scanner and some components are approximated. Screen content is a demo.</p>
-    </aside>
+        </section>
 
-    <nav class="dock" aria-label="View controls">
-      <div class="seg" role="group" aria-label="View preset">
-        <button data-mode="outside" class="on">Outside</button>
-        <button data-mode="inside">Inside</button>
-        <button data-mode="exploded">Exploded</button>
+        <div id="info" class="info sb-view" hidden>
+          <p class="info-eyebrow"><em id="info-s"></em><span class="pin-dot" aria-hidden="true" title="Pinned">📌</span></p>
+          <h3 id="info-t"></h3>
+          <p id="info-d"></p>
+          <a id="info-link" href="https://wesatoshis.com/" target="_blank" rel="noopener" hidden>Explore at Wesatoshis ↗</a>
+          <button id="info-x" class="info-close" type="button">Close details</button>
+        </div>
+
+        <section id="photo-view" class="sb-view" hidden aria-label="Real photo">
+          <button id="photo-view-back" class="info-close" type="button">← Back</button>
+          <img id="photo-view-img" alt="">
+          <p id="photo-view-caption"></p>
+        </section>
+
+        <main id="content" class="sb-view" hidden>
+
+    <section id="status" class="sec alt">
+      <div class="wrap">
+        <h2>All <em>14</em> features</h2>
+        <p class="sub">The public FAQ on wesatoshis.com is older than the producer’s current feature list. Items badged <strong>Producer information</strong> come from the company’s newer list and are not yet in the public FAQ; the FAQ text below is preserved as published. The screens in this viewer are simulations of these features.</p>
+        <ul class="feat-grid" id="feature-overview">
+            <li class="fi fi-faq" data-source="faq"><strong>Lightning via NWC</strong> <span class="bdg bdg-faq">Public FAQ / site</span><span class="fi-d">Pay BOLT11 invoices through Nostr Wallet Connect (official tutorial), from the wallet balance or a home Lightning node.</span></li>
+            <li class="fi fi-producer" data-source="producer"><strong>Lightning via Arkade</strong> <span class="bdg bdg-prod">Producer information</span><span class="fi-d">Lightning payments powered by Arkade, available per the producer. A June 2026 post on the manufacturer’s X account first described it as Developer Mode.</span></li>
+            <li class="fi fi-faq" data-source="faq"><strong>Native SPV, no Electrum</strong> <span class="bdg bdg-faq">Public FAQ / site</span><span class="fi-d">Direct peer-to-peer with SPV header verification and no Electrum servers. SPV is not full-node validation.</span></li>
+            <li class="fi fi-producer" data-source="producer"><strong>Tor support</strong> <span class="bdg bdg-prod">Producer information</span><span class="fi-d">Tor is part of the producer’s feature list. The older public FAQ answer about Tor is preserved on the FAQ page and may differ.</span></li>
+            <li class="fi fi-producer" data-source="producer"><strong>Bitcoin multisig</strong> <span class="bdg bdg-prod">Producer information</span><span class="fi-d">Multisignature Bitcoin wallets.</span></li>
+            <li class="fi fi-producer" data-source="producer"><strong>XMR payments</strong> <span class="bdg bdg-prod">Producer information</span><span class="fi-d">Pay with Monero (XMR).</span></li>
+            <li class="fi fi-faq" data-source="faq"><strong>Nostr zaps</strong> <span class="bdg bdg-faq">Public FAQ / site</span><span class="fi-d">Built-in Nostr client; add friends by Nostr public key and zap them.</span></li>
+            <li class="fi fi-faq" data-source="faq"><strong>Real-time BTC price</strong> <span class="bdg bdg-faq">Public FAQ / site</span><span class="fi-d">Live price and fee data without a central server, as described by the manufacturer.</span></li>
+            <li class="fi fi-producer" data-source="producer"><strong>PSBT with an external air-gapped wallet</strong> <span class="bdg bdg-prod">Producer information</span><span class="fi-d">A PSBT workflow where the air-gapped wallet is the external device. The card itself uses Wi-Fi and is not air-gapped.</span></li>
+            <li class="fi fi-producer" data-source="producer"><strong>Swaps via Trocador</strong> <span class="bdg bdg-prod">Producer information</span><span class="fi-d">USDT, USDC, ETH, BTC and XMR swaps through Trocador (trocador.app), a third-party swap service with its own rates, fees and terms.</span></li>
+            <li class="fi fi-faq" data-source="faq"><strong>Your own Bitcoin node</strong> <span class="bdg bdg-faq">Public FAQ / site</span><span class="fi-d">Link the card to a node you run with a btcnode: QR code. The node is a separate device.</span></li>
+            <li class="fi fi-faq" data-source="faq"><strong>Secure elements</strong> <span class="bdg bdg-faq">Public FAQ / site</span><span class="fi-d">Used primarily to generate a new seed during wallet setup. The site also advertises an “EAL-certified” element, a manufacturer claim.</span></li>
+            <li class="fi fi-producer" data-source="producer"><strong>Dice rolls</strong> <span class="bdg bdg-prod">Producer information</span><span class="fi-d">Dice rolls are part of the producer’s feature list.</span></li>
+            <li class="fi fi-producer" data-source="producer"><strong>Standalone card</strong> <span class="bdg bdg-prod">Producer information</span><span class="fi-d">Made to be used without a computer or phone app. Some setup tasks (Wi-Fi/node QR codes, SD card, firmware flashing) may still use another device.</span></li>
+        </ul>
+        <p class="fine">SPV verification is not a full node, and swaps are performed by a third-party service, not by the card or the Bitcoin network. Sources: <a href="https://www.wesatoshis.com/faq.json">public FAQ ↗</a> · <a href="https://wesatoshis.com/">wesatoshis.com ↗</a> · <a href="https://x.com/we_satoshis/status/2067630602224865661">Arkade post on X, 18 Jun 2026 ↗</a> · <a href="https://trocador.app/en">Trocador ↗</a>.</p>
       </div>
-      <label class="slider"><span>Explode</span>
-        <input id="explode" type="range" min="0" max="100" value="0" aria-label="Explode amount">
-      </label>
-      <div class="tools">
-        <button id="flip" title="View the other side">⟲ <span>Flip</span></button>
-        <button id="labels" class="on" title="Toggle labels">Labels</button>
-        <button id="spin" class="on" title="Auto-rotate">Auto</button>
-      </div>
-    </nav>
-
-    <div id="loader" class="loader"><div class="bar"><i id="bar"></i></div><p id="loader-t">Loading 3D model…</p></div>
-    <noscript><p class="nojs">This page needs JavaScript and WebGL to show the 3D model.</p></noscript>
-    <nav class="content-launchers" aria-label="Product information">
-      <button type="button" data-open-panel="overview">Overview</button>
-      <button type="button" data-open-panel="specs">Specs</button>
-      <button type="button" data-open-panel="photos">Photos</button>
-      <button type="button" data-open-panel="faq">FAQ <span>41</span></button>
-      <button type="button" data-open-panel="notes">Sources</button>
-    </nav>
-  </section>
-
-  <dialog id="photo-dialog" aria-labelledby="photo-dialog-caption"><button id="photo-dialog-close" aria-label="Close photo">×</button><img id="photo-dialog-img" alt=""><p id="photo-dialog-caption"></p></dialog>
-
-  <!-- ============ CONTENT ============ -->
-  <dialog id="content-dialog" aria-labelledby="content-title">
-  <header class="panel-header"><h2 id="content-title">Product information</h2><button id="content-close" type="button" aria-label="Close product information">×</button></header>
-  <main id="content">
+    </section>
 
     <section id="story" class="sec">
       <div class="wrap">
         <h2>The <em>device</em></h2>
-        <p class="lede">A pocket-sized Bitcoin computer, built to verify, connect and protect without a custodian — your keys stay on the card. Four tactile buttons, a display, a scanner and a battery — everything on the card itself.</p>
+        <p class="lede">A pocket-sized Bitcoin computer, built to verify, connect and protect without a custodian — the manufacturer says your keys stay on the card. Four tactile buttons, a display, a scanner and a battery are on the card; some setup tasks (QR codes, SD cards, firmware flashing) use another device.</p>
         <div class="stats">
           <div class="stat"><b>1000&nbsp;mAh</b><span>battery <i>(advertised)</i></span></div>
           <div class="stat"><b>~35&nbsp;min</b><span>full charge</span></div>
@@ -222,14 +254,14 @@
         <p class="sub">Summarized manufacturer claims, not independently verified. <a href="https://www.wesatoshis.com/faq.json">Official FAQ ↗</a> · <a href="https://www.wesatoshis.com/qr">QR generator ↗</a> · <a href="https://www.wesatoshis.com/flash">Flashing ↗</a> · <a href="https://www.wesatoshis.com/enclosure">Enclosure ↗</a></p>
         <h3>Purpose and payments</h3>
         <details data-faq-id="688f2861a5b50"><summary>Is an online card secure?</summary><p>The manufacturer argues that insecure code, rather than being online itself, is the risk. This is a claim, not an independent security assessment.</p></details>
-        <details data-faq-id="688f2861a5b57"><summary>Is this a replacement for cold storage?</summary><p>No. The manufacturer describes it as a decentralized transfer mechanism, not a replacement for cold storage.</p></details>
+        <details data-faq-id="688f2861a5b57"><summary>Is this a replacement for cold storage?</summary><p>No. The manufacturer describes it as a tool for transferring Bitcoin, not a replacement for cold storage.</p></details>
         <details data-faq-id="688f2861a5b58"><summary>Does it need a central server?</summary><p>The manufacturer says the device does not depend on a central server and is designed to work while the Bitcoin network exists.</p></details>
-        <details data-faq-id="688f2861a5b59"><summary>What can the card do?</summary><p>The manufacturer describes native BTC and Lightning sending and receiving, blockchain data embedding, and other functions.</p></details>
+        <details data-faq-id="688f2861a5b59"><summary>What can the card do?</summary><p>The manufacturer describes native BTC and Lightning sending and receiving, blockchain data embedding, and other functions. The producer’s newer feature list is under <em>All 14 features</em>.</p></details>
         <details data-faq-id="688f2861a5b5d"><summary>Can I pay a Lightning invoice without my own Lightning node?</summary><p>The FAQ says a BOLT11 invoice can be paid using either a home Lightning node or the card wallet balance after depositing BTC.</p></details>
         <details data-faq-id="688f2861a5b73"><summary>How are Lightning payments made more private?</summary><p>The manufacturer describes locking equivalent BTC in a smart contract and having a random Lightning node pay the invoice, intended to reduce the link between sender and recipient. The claimed privacy is not independently verified.</p></details>
         <details data-faq-id="688f2861a5b74"><summary>How does the card learn that a payment completed?</summary><p>The FAQ says the paying Lightning node broadcasts payment status via Nostr, which the card receives in real time.</p></details>
         <details data-faq-id="688f2861a5b75"><summary>Can a Nostr payment confirmation be forged?</summary><p>The manufacturer says confirmation relies on invoice preimage and SHA-256 information and claims authenticity. The FAQ wording does not fully explain the verification procedure; do not treat this as an independently verified guarantee.</p></details>
-        <details data-faq-id="688f2861a5b79"><summary>Which currencies and payment networks are supported?</summary><p>The FAQ lists native BTC and Lightning payments.</p></details>
+        <details data-faq-id="688f2861a5b79"><summary>Which currencies and payment networks are supported?</summary><p>The FAQ lists native BTC and Lightning payments. This public answer is older than the producer’s current list, which also includes Lightning via Arkade, XMR payments and swaps (USDT, USDC, ETH, BTC, XMR) via Trocador, a third-party service; see <em>All 14 features</em>.</p></details>
         <details data-faq-id="688f2861a5b7e"><summary>Why a card instead of a mobile app?</summary><p>The manufacturer says it wants to avoid dependence on third-party mobile app-store approval.</p></details>
         <h3>Bitcoin, nodes and network</h3>
         <details data-faq-id="688f2861a5b5a"><summary>Can it connect to my Bitcoin node?</summary><p>According to the FAQ, a QR code containing node connection information connects it to a home node. The example format is <code>btcnode:127.0.0.1:8333</code>.</p></details>
@@ -242,7 +274,7 @@
         <details data-faq-id="688f2861a5b6a"><summary>Can it detect Replace-By-Fee transactions?</summary><p>The manufacturer says it detects RBF transactions.</p></details>
         <details data-faq-id="688f2861a5b6d"><summary>Can it scan inverted or colored QR codes?</summary><p>The FAQ says yes after scanning an enabling code. <a href="https://www.wesatoshis.com/faq-images/faq-img-698f225e1b9b21.66342669.jpg">Open the manufacturer’s enabling QR code ↗</a>.</p></details>
         <details data-faq-id="688f2861a5b6e"><summary>Can I use Testnet or Signet?</summary><p>The manufacturer says both testing networks are supported.</p></details>
-        <details data-faq-id="688f2861a5b77"><summary>Is VPN or Tor built in?</summary><p>No. The manufacturer says the chip cannot run them directly, but a hotspot device using VPN or Tor can provide the connection. Actual routing depends on the hotspot configuration.</p></details>
+        <details data-faq-id="688f2861a5b77"><summary>Is VPN or Tor built in?</summary><p>No. The manufacturer says the chip cannot run them directly, but a hotspot device using VPN or Tor can provide the connection. Actual routing depends on the hotspot configuration. The producer’s newer feature list includes Tor support; this older public FAQ answer may differ.</p></details>
         <details data-faq-id="693b527049e47"><summary>Can a VPN cause connection problems?</summary><p>The FAQ says some VPNs, including ProtonVPN, may interfere with connectivity or transactions. It suggests temporarily disabling the VPN or switching servers; contact support if problems persist. Disabling a VPN changes your privacy protections.</p></details>
         <details data-faq-id="69851f05e2463"><summary>How do I create a Wi-Fi QR code?</summary><p>Use the manufacturer’s <a href="https://wesatoshis.com/qr">QR generator ↗</a>.</p></details>
         <details data-faq-id="698f229e78e4e"><summary>How do I create a btcnode QR code?</summary><p>Use the manufacturer’s <a href="https://wesatoshis.com/qr">QR generator ↗</a> for node connection details.</p></details>
@@ -259,10 +291,10 @@
         <details data-faq-id="688f2861a5b5f"><summary>Can it provide blockchain proof of existence?</summary><p>The FAQ says it uses DOCPROOF to embed a SHA-256 hash on the blockchain.</p></details>
         <details data-faq-id="688f2861a5b60"><summary>Can it track new blocks?</summary><p>The manufacturer says it tracks new blocks in real time, including the miner and detailed block statistics.</p></details>
         <details data-faq-id="688f2861a5b67"><summary>Can firmware be updated offline?</summary><p>The FAQ says updates can be installed offline using the SD card.</p></details>
-        <details data-faq-id="688f2861a5b6b"><summary>Where do price and fee data come from?</summary><p>The manufacturer claims these are fetched in a decentralized way without a central server, but the FAQ does not explain the mechanism.</p></details>
+        <details data-faq-id="688f2861a5b6b"><summary>Where do price and fee data come from?</summary><p>The manufacturer claims these are fetched without a central server, but the FAQ does not explain the mechanism.</p></details>
         <details data-faq-id="688f2861a5b6c"><summary>Does it have a camera for scanning?</summary><p>The FAQ describes a camera with an embedded chip that detects and processes QR codes on the fly.</p></details>
         <details data-faq-id="688f2861a5b6f"><summary>What are the battery and charging figures?</summary><p>The FAQ advertises a 1000 mAh battery, up to three hours of continuous operation at full power and about 35 minutes to charge. It advises against using it that long in one session.</p></details>
-        <details data-faq-id="688f2861a5b76"><summary>Does the card run a Nostr client?</summary><p>The FAQ says it has a built-in Nostr client for payment confirmations and decentralized communication.</p></details>
+        <details data-faq-id="688f2861a5b76"><summary>Does the card run a Nostr client?</summary><p>The FAQ says it has a built-in Nostr client for payment confirmations and Nostr messaging.</p></details>
         <details data-faq-id="688f2861a5b78"><summary>What does the fox icon mean?</summary><p>According to the FAQ, it indicates incoming Nostr traffic.</p></details>
         <details data-faq-id="6890cdd1c2183"><summary>Can I add friends?</summary><p>The FAQ says you can add friends by their Nostr public key and zap them.</p></details>
       </div>
@@ -272,7 +304,10 @@
         <h2>Notes &amp; sources</h2>
         <ul class="notes">
           <li>This page's 3D model, OLED screens and interactions are a <strong>demonstration</strong>, not a live device or wallet.</li>
-          <li>Per the FAQ, the card is a decentralized transfer mechanism — <strong>not a cold-storage replacement</strong>.</li>
+          <li>Per the FAQ, the card is a Bitcoin transfer tool — <strong>not a cold-storage replacement</strong>.</li>
+          <li>Features badged “Producer information” come from the company’s newer feature list and are not yet in the public FAQ, which may be out of date. The FAQ text is preserved as published.</li>
+          <li>The card is described as standalone: payments are made without a computer or phone app. Setup tasks such as generating Wi-Fi or node QR codes, preparing the SD card or flashing firmware may still use another device.</li>
+          <li>Bitcoin is a peer-to-peer network. Statements about how the card works without a central server are manufacturer claims and are not verified here.</li>
           <li>Product, security and certification claims above are <strong>manufacturer statements</strong> from wesatoshis.com and its FAQ — not independently verified here.</li>
           <li>SPV verification is <strong>not</strong> the same as running a full node; the card verifies headers, not the entire chain.</li>
           <li>The battery in the 3D model is an approximation from a reference photograph. The official site advertises 1000&nbsp;mAh while the supplied photo shows a 500&nbsp;mAh cell — the capacity may vary by revision and is not fixed here.</li>
@@ -291,7 +326,7 @@
             <ellipse class="hood-eye" cx="22" cy="43.6" rx="3.2" ry="1.9"/>
             <ellipse class="hood-eye" cx="42" cy="43.6" rx="3.2" ry="1.9"/>
           </svg>
-          <span>Wesatoshis Labs — a decentralized Bitcoin card.<br>No apps. No accounts. Just the protocol.</span>
+          <span>Wesatoshis Labs — a pocket Bitcoin card.<br>Designed to pay without a phone app. Some setup tasks use another device.</span>
         </div>
         <nav class="foot-links" aria-label="Links">
           <a href="https://wesatoshis.com/" target="_blank" rel="noopener">Overview</a>
@@ -305,8 +340,33 @@
       </div>
     </footer>
 
-  </main>
-  </dialog>
+        </main>
+      </div>
+    </aside>
+
+    <nav class="dock" aria-label="View controls">
+      <div class="seg" role="group" aria-label="View preset">
+        <button data-mode="outside" class="on">Outside</button>
+        <button data-mode="inside">Inside</button>
+        <button data-mode="exploded">Exploded</button>
+      </div>
+      <button id="explode-hold" class="hold-btn" type="button" aria-pressed="false" aria-keyshortcuts="Control" title="Hold to explode, release to reassemble (or hold Ctrl)">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 9v6M9.500 12h5M12 2l-2.500 3h5zM12 22l-2.500-3h5zM2 12l3-2.500v5zM22 12l-3-2.500v5z"/></svg><span>Hold to explode</span>
+      </button>
+      <div class="tools">
+        <button id="labels" class="on" title="Toggle labels">Labels</button>
+        <button id="spin" class="on" title="Auto-rotate">Auto</button>
+      </div>
+    </nav>
+
+    <p id="explode-hint" class="hint">Hold <kbd>Ctrl</kbd> to explode · release to reassemble<br>Click the card’s buttons to use its simulated screen</p>
+    <p id="touch-hint" class="hint-touch">Tap the card’s buttons to use its simulated screen</p>
+    <p id="explode-status" class="sr-only" role="status" aria-live="polite"></p>
+
+    <div id="loader" class="loader"><div class="bar"><i id="bar"></i></div><p id="loader-t">Loading 3D model…</p></div>
+    <noscript><p class="nojs">This page needs JavaScript and WebGL to show the 3D model.</p></noscript>
+  </section>
+
 </div>
 
 <script src="panels.js"></script>
