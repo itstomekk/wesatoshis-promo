@@ -3,14 +3,15 @@
      turning   0-600     the card rotates so its lens points straight at the viewer
      shutter   600-1000  brief hold: flash (soft fade under reduced motion) and, only if sound is on, a shutter click
      returning 1000-1600 the card eases back to exactly its previous pose
-     printing  1600-3400 a small print feeds out of the top edge of the card in short steps, developing as it goes
+     printing  1600-3400 a small print feeds out of the middle of the card's upper edge, flat along the card, in short steps, developing as it goes
      incoming  3400-4200 the print lifts off and grows to large and sharp in front of the viewer
      shown     4200-     it stays until Esc / the close button */
 const TURN_END = 600, SHUTTER_END = 1000, RETURN_END = 1600, FLASH_AT = 650;
 const PRINT_MS = 1800, LIFT_MS = 800, STEPS = 12;
 const eio = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;   // cubic ease in-out
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
-/* slot(): where the print comes out, in client px: { x, y, w } = centre of the card's top edge and the card's on-screen width */
+/* slot(aspect): where the print comes out, in client px: { x, y } = middle of the card edge, (ex, ey) = that edge on screen,
+   (dx, dy) = a print of that height/width aspect slid fully out, flat in the card's plane. null = no card. */
 export function initSelfie(stage, reducedMotion, { onShutter = () => {}, onPrint = () => {}, slot = () => null } = {}) {
   const link = document.createElement('link'); link.rel = 'stylesheet'; link.href = new URL('./selfie.css', import.meta.url).href; document.head.appendChild(link);
   const flash = document.createElement('div'); flash.className = 'selfie-flash'; flash.setAttribute('aria-hidden', 'true'); stage.appendChild(flash);
@@ -34,20 +35,25 @@ export function initSelfie(stage, reducedMotion, { onShutter = () => {}, onPrint
     document.body.appendChild(dialog); dialog.showModal(); dialog.querySelector('button').focus({ preventScroll: true });
     anims().forEach(a => a.cancel());
     const r = photo.getBoundingClientRect(), W = r.width, H = r.height, cx = r.left + W / 2, cy = r.top + H / 2;
-    const vw = innerWidth, vh = innerHeight, sl = slot() || { x: vw / 2, y: vh * .55, w: W };
-    const s = clamp(sl.w * .55 / W, .22, .5), h = H * s, w = W * s;
-    const sx = clamp(sl.x, w / 2 + 16, vw - w / 2 - 16), sy = clamp(sl.y, h + 24, vh - 24);
-    // the slot: a dark feed opening with a warm glow, sitting on the card's top edge
-    Object.assign(slotEl.style, { left: (sx - w / 2 - 10) + 'px', top: (sy - 3) + 'px', width: (w + 20) + 'px' });
+    const vw = innerWidth, vh = innerHeight, sl = slot(H / W);
+    // affine map from the photo's own px (origin at its centre, y down) to the screen: A = its x axis laid along the card
+    // edge, B = its y axis pointing back into the card. The print lies flat in the card's plane while it feeds out.
+    let A, B, S;
+    if (sl) { A = { x: sl.ex * .7 / W, y: sl.ey * .7 / W }; B = { x: -sl.dx / H, y: -sl.dy / H }; S = { x: sl.x, y: sl.y }; if (A.x * B.y - A.y * B.x < 0) { A.x = -A.x; A.y = -A.y; } }
+    if (!sl || Math.abs(A.x * B.y - A.y * B.x) < .004 || !(S.x > 0 && S.x < vw && S.y > 0 && S.y < vh)) { A = { x: .3, y: 0 }; B = { x: 0, y: .3 }; S = { x: vw / 2, y: vh * .55 }; }   // card edge-on or off screen: a plain upright print
+    const fit = clamp(.45 / Math.hypot(A.x, A.y), .1, 1); A.x *= fit; A.y *= fit; B.x *= fit; B.y *= fit;   // a big card on screen still gives a small print (at most 45% of the landed photo)
+    const edgePx = Math.hypot(A.x, A.y) * W + 20, ang = Math.atan2(A.y, A.x);
+    // the slot: a dark feed opening with a warm glow along the middle of that edge
+    Object.assign(slotEl.style, { left: (S.x - edgePx / 2) + 'px', top: (S.y - 3) + 'px', width: edgePx + 'px', transform: `rotate(${ang}rad)`, transformOrigin: '50% 50%' });
     slotEl.animate([{ opacity: 0 }, { opacity: 1, offset: .08 }, { opacity: 1, offset: print / total }, { opacity: 0, offset: Math.min(1, (print + 120 * scale) / total) }, { opacity: 0 }], { duration: total, fill: 'both' });   // gone as soon as the print lifts off
-    // p = how much of the print is out of the slot; the part still inside is clipped at the slot line
-    const at = p => ({ transform: `translate(${sx - cx}px, ${sy - p * h + h / 2 - cy}px) scale(${s}) rotate(0deg)`, clipPath: `inset(0 0 ${((1 - p) * 100).toFixed(2)}% 0)` });
+    // p = how much of the print is out of the slot; the part still inside the card is clipped at the slot line
+    const mat = p => { const k = p * H - H / 2; return `matrix(${A.x}, ${A.y}, ${B.x}, ${B.y}, ${S.x - B.x * k - cx}, ${S.y - B.y * k - cy})`; };
+    const at = p => ({ transform: mat(p), clipPath: `inset(0 0 ${((1 - p) * 100).toFixed(2)}% 0)` });
     const kf = [{ ...at(0), offset: 0 }], pf = print / total;
     for (let i = 0; i < STEPS; i++) {   // stepper-motor feed: a quick push, then a short pause
       const o = pf * i / STEPS; kf.push({ ...at(i / STEPS), offset: o + pf * .45 / STEPS }, { ...at((i + 1) / STEPS), offset: o + pf / STEPS });
     }
-    const out = at(1);
-    kf.push({ transform: out.transform.replace('rotate(0deg)', 'rotate(-3deg)'), clipPath: 'inset(0 0 0% 0)', offset: pf + (1 - pf) * .15 },
+    kf.push({ transform: mat(1.12), clipPath: 'inset(0 0 0% 0)', offset: pf + (1 - pf) * .15 },   // pops free of the slot
       { transform: 'translate(0px, 0px) scale(1.03) rotate(2deg)', clipPath: 'inset(0 0 0% 0)', offset: pf + (1 - pf) * .8 },
       { transform: 'translate(0px, 0px) scale(1) rotate(0deg)', clipPath: 'inset(0 0 0% 0)', offset: 1 });
     kf.slice(1).forEach((k, i) => { if (k.offset <= kf[i].offset) k.offset = Math.min(1, kf[i].offset + 1e-4); });

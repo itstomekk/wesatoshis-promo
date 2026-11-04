@@ -3,8 +3,8 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { initSound } from './sound.js';
-import { initSelfie } from './selfie.js';
+import { initSound } from './sound.js?release=r5-edge';
+import { initSelfie } from './selfie.js?release=r5-edge';
 
 /* ------------------------------------------------------------------ helpers */
 const $ = (s, r = document) => r.querySelector(s);
@@ -15,7 +15,7 @@ const MM = 0.1;                       // CAD mm -> scene cm
 const isDesktop = () => innerWidth > 860;
 const stage = $('#stage');
 const sound = initSound();
-const selfie = initSelfie(stage, () => prefersReduced(), { onShutter: () => sound.shutter(), onPrint: (ms, n) => sound.printer(ms, n), slot: () => cardSlot() });
+const selfie = initSelfie(stage, () => prefersReduced(), { onShutter: () => sound.shutter(), onPrint: (ms, n) => sound.printer(ms, n), slot: a => cardSlot(a) });
 const stageW = () => stage.clientWidth || innerWidth;
 const stageH = () => stage.clientHeight || innerHeight;
 const RM = matchMedia('(prefers-reduced-motion: reduce)');
@@ -665,15 +665,26 @@ const INTRO_PULLBACK_MS = 3800;
 function presetGoal(mode) { const p = PRESET[mode]; return { az: p.az, el: (S.flip ? -1 : 1) * p.el * Math.PI / 180, rad: fitDist(p.hw, p.hh), tgt: new THREE.Vector3(...p.tgt) }; }
 /* end of the assembly intro: close over the card's face, a little turned, before pulling back */
 function closeupGoal() { const g = presetGoal(S.mode); return { az: g.az + .38, el: g.el + .2, rad: g.rad * .5, tgt: g.tgt.clone().add(new THREE.Vector3(0, .05, 0)) }; }
-/* the card's top edge on screen (client px), where the joke photo prints out */
-function cardSlot() {
-  const box = new THREE.Box3().setFromObject(model); if (box.isEmpty()) return null;
-  const r = canvas.getBoundingClientRect(), v = new THREE.Vector3(); let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
-  for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) {
-    v.set(x, y, z).project(camera); const px = r.left + (v.x + 1) / 2 * r.width, py = r.top + (1 - v.y) / 2 * r.height;
-    x0 = Math.min(x0, px); x1 = Math.max(x1, px); y0 = Math.min(y0, py); y1 = Math.max(y1, py);
+/* where the print comes out: the middle of the card edge that faces up on screen (client px), the screen vector along that
+   edge (its full length) and the screen vector of a print of the given height/width aspect slid fully out of it, flat in
+   the card's plane. selfie.js builds an affine map from these so the photo feeds out along the card, edge first. */
+function cardSlot(aspect = .8) {
+  const q = model.quaternion.clone(); model.quaternion.identity(); model.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(model); model.quaternion.copy(q); model.updateMatrixWorld(true);
+  if (box.isEmpty()) return null;
+  const r = canvas.getBoundingClientRect(), c = box.getCenter(new THREE.Vector3()), sz = box.getSize(new THREE.Vector3());
+  const scr = p => { const v = p.clone().applyMatrix4(model.matrixWorld).project(camera); return { x: r.left + (v.x + 1) / 2 * r.width, y: r.top + (1 - v.y) / 2 * r.height }; };
+  let best = null;
+  for (const [ax, sg] of [['x', 1], ['x', -1], ['z', 1], ['z', -1]]) {
+    const n = new THREE.Vector3(ax === 'x' ? sg : 0, 0, ax === 'z' ? sg : 0), e = new THREE.Vector3(ax === 'x' ? 0 : 1, 0, ax === 'x' ? 1 : 0);
+    const half = sz[ax] / 2, len = ax === 'x' ? sz.z : sz.x, mid = c.clone().addScaledVector(n, half);
+    const m = scr(mid), e0 = scr(mid.clone().addScaledVector(e, -len / 2)), e1 = scr(mid.clone().addScaledVector(e, len / 2));
+    const o = scr(mid.clone().addScaledVector(n, len * .7 * aspect));
+    const ex = e1.x - e0.x, ey = e1.y - e0.y, dx = o.x - m.x, dy = o.y - m.y, dl = Math.hypot(dx, dy) || 1;
+    const area = Math.abs(ex * dy - ey * dx), score = -dy / dl + (area > 400 ? 0 : -9);   // the edge whose outward side points up on screen
+    if (!best || score > best.score) best = { score, x: m.x, y: m.y, ex, ey, dx, dy };
   }
-  return { x: (x0 + x1) / 2, y: y0 + (y1 - y0) * .1, w: x1 - x0 };
+  return best;
 }
 const FRAME = { rad: .42, y: .7 }, frame = { h: 0, applied: 0 };   // camera re-framing while an explosion is held
 const Fr = h => 1 + FRAME.rad * h, Fy = h => FRAME.y * h;
@@ -953,7 +964,7 @@ const COMPONENT_FACTS = {
   sd: 'Holds blockchain headers and your encrypted wallet, and installs firmware updates offline.',
   esp32: 'Connects directly to Bitcoin peers and verifies block headers (SPV). A secure element generates your seed during setup.',
   buttons: 'Click UP, DOWN, BACK or OK on the model to move around the screen. The card supports PIN protection and decoy mode.',
-  buzzer: 'Sound can be switched on or off in settings. On this page, tap the speaker to switch the page’s optional sound on or off; it starts off.',
+  buzzer: 'Sound can be switched on or off in settings. On this page, tap the speaker to switch the page’s optional sound on or off; it starts off. Switching it on plays a garbled message from a Wesatoshis robot of the future.',
   shell: 'The enclosure files and assembly specs are published for download.'
 };
 function showInfo(h, { pinned = false, preview = false } = {}) {
@@ -1046,7 +1057,7 @@ function compGlow(id) {
   }
   return compEdges[id];
 }
-const gag = { w: 0 };
+const gag = { w: 0, z: 1 }, GAG_PULL = .35;   // GAG_PULL: how much farther the camera backs off at the shutter (x distance)
 const gagOn = () => selfie.active() || gag.w > 0;
 const compCenter = id => new THREE.Box3().setFromObject(nodes[COMP[id].node]).getCenter(new THREE.Vector3());
 function compClient(id) {
@@ -1108,8 +1119,8 @@ async function activate(id) {
   finishIntro();
   if (id === 'qr') { if (selfie.trigger()) { setHover(null, 'canvas'); compStatus.textContent = 'Say cheese!'; } return; }
   if (id === 'buzzer') {
-    const was = sound.state().enabled, on = await sound.toggle();
-    toast('buzzer', on ? 'Sound on' : was ? 'Sound off' : 'Sound unavailable');
+    const was = sound.state().enabled, on = await sound.toggle();   // switching on plays a garbled message from the future
+    toast('buzzer', on ? 'Sound on · incoming message from the future…' : was ? 'Sound off' : 'Sound unavailable');
   }
 }
 /* info-panel action button (keyboard / screen-reader path): Enter on it does exactly what clicking the part does */
@@ -1192,6 +1203,9 @@ function tick() {
   model.rotation.set(hover.rx, hover.ry, 0);
   gag.w = selfie.turn(now);   // the card turns its camera toward the viewer during the selfie gag, then back
   if (gag.w > 0) model.quaternion.premultiply(gagQuat(gag.w));
+  // ...and the camera backs off a little while the photo is taken, then comes back in with the card
+  const gz = 1 + GAG_PULL * gag.w;
+  if (tw) gag.z = 1; else if (gz !== gag.z) { camera.position.sub(controls.target).multiplyScalar(gz / gag.z).add(controls.target); gag.z = gz; }
   for (let i = 0; i < 4; i++) { /* screws spin about their own axes while lifting */ }
   // caps press animation
   for (const [m, t0] of pressing) { const k = (now - t0) / 260; if (!(m.uuid in baseCapY)) baseCapY[m.uuid] = m.position.y; m.position.y = baseCapY[m.uuid] - Math.sin(clamp(k, 0, 1) * Math.PI) * .05; if (k >= 1) { m.position.y = baseCapY[m.uuid]; pressing.delete(m); } }
