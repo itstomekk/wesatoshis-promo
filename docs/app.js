@@ -3,6 +3,8 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { initSound } from './sound.js';
+import { initSelfie } from './selfie.js';
 
 /* ------------------------------------------------------------------ helpers */
 const $ = (s, r = document) => r.querySelector(s);
@@ -12,6 +14,8 @@ function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let
 const MM = 0.1;                       // CAD mm -> scene cm
 const isDesktop = () => innerWidth > 860;
 const stage = $('#stage');
+const sound = initSound();
+const selfie = initSelfie(stage, () => prefersReduced(), { onShutter: () => sound.shutter() });
 const stageW = () => stage.clientWidth || innerWidth;
 const stageH = () => stage.clientHeight || innerHeight;
 const RM = matchMedia('(prefers-reduced-motion: reduce)');
@@ -418,7 +422,6 @@ function devKey(k) {
 function updateScreenUI() {
   const u = UI[dev.cur];
   const now = $('#screen-now'); if (now) now.textContent = `Screen: ${u.label}`;
-  document.querySelectorAll('#screen-picker button').forEach((b, i) => b.setAttribute('aria-pressed', String(i === curScreen)));
 }
 function drawScreen(i) { const m = SCREENS[clamp(i | 0, 0, SCREENS.length - 1)]; if (m.pre) m.pre(); go(m.to); }
 const snapshot = () => JSON.stringify(Object.fromEntries(DEV_FIELDS.map(k => [k, dev[k]])));
@@ -488,9 +491,20 @@ for (const i of [0, 1, 2, 3]) { nodeMat[`screw_${i}`] = M.steel; nodeMat[`insert
 const LAYERS = {
   window: { off: 2.7 }, screws: { off: 5.0, spin: true }, cover: { off: 1.5 }, pcb: { off: 0 }, battery: { off: -1.25 }, inserts: { off: -1.7 }, shell: { off: -2.7 },
 };
-const layer = {}; for (const k in LAYERS) { layer[k] = new THREE.Group(); layer[k].name = k; scene.add(layer[k]); }
+const model = new THREE.Group(); scene.add(model);
+const layer = {}; for (const k in LAYERS) { layer[k] = new THREE.Group(); layer[k].name = k; model.add(layer[k]); }
+// A small, independent tilt never changes the camera or the assembly's layer transforms.
+const hover = { x: 0, y: 0, rx: 0, ry: 0 };
+canvas.addEventListener('pointermove', e => {
+  if (e.pointerType !== 'mouse' || e.buttons || prefersReduced()) return;
+  const r = canvas.getBoundingClientRect();
+  hover.x = clamp((e.clientX - r.left) / r.width * 2 - 1, -1, 1);
+  hover.y = clamp((e.clientY - r.top) / r.height * 2 - 1, -1, 1);
+});
+canvas.addEventListener('pointerleave', () => { hover.x = hover.y = 0; });
+canvas.addEventListener('pointerdown', () => { hover.x = hover.y = 0; });
 // The model itself remains the sole source of geometry; the intro moves whole assembly layers.
-const intro = { phase: 'complete', start: 0, spread: 0 };
+const intro = { phase: 'complete', start: 0, spread: 0, soundPhase: '' };
 const introNames = Object.keys(LAYERS);
 const skipIntro = document.createElement('button');
 skipIntro.id = 'skip-intro'; skipIntro.type = 'button'; skipIntro.textContent = 'Skip intro'; skipIntro.hidden = true;
@@ -503,16 +517,19 @@ function finishIntro() {
   if (restoreFocus) canvas.focus({ preventScroll: true });
 }
 skipIntro.addEventListener('click', finishIntro);
-stage.addEventListener('pointerdown', e => { if (e.target !== skipIntro) finishIntro(); }, true);
-canvas.addEventListener('wheel', finishIntro, { capture: true, passive: true });
-addEventListener('keydown', e => { if (e.key === 'Escape' || (e.target === canvas && e.key !== 'Tab')) finishIntro(); });
-RM.addEventListener('change', e => { if (e.matches) finishIntro(); });
+// Only an explicit skip action ends the intro; normal interaction must not dismiss it.
+addEventListener('keydown', e => { if (e.key === 'Escape') finishIntro(); });
+// prefers-reduced-motion does NOT shorten or skip the intro (owner decision); the only safeguards are no hard flash and Skip / Esc.
 function stepIntro(now) {
   if (intro.phase === 'complete') return;
   const s = (now - intro.start) / 1000;
   if (s < 2) { intro.phase = 'empty'; return; }
   if (s >= 8) { finishIntro(); return; }
   intro.phase = s < 5.5 ? 'orbit' : 'assemble';
+  if (intro.phase !== intro.soundPhase) {
+    intro.soundPhase = intro.phase;
+    if (intro.phase === 'orbit') sound.flyby(); else sound.assembly();
+  }
   const arrival = ease(clamp((s - 2) / 1.5, 0, 1));
   const settle = 1 - ease(clamp((s - 5.5) / 2.5, 0, 1));
   intro.spread = settle * (1.5 + 5 * arrival);
@@ -593,12 +610,12 @@ const HOT = [
   { id: 'screw', node: 'screw_1', side: 'front', pr: 2, t: 'M2.5 × 6 screws', s: '4 corners · flush', d: 'Four stainless M2.5 × 6 mm screws clamp the cover to the back shell.' },
   { id: 'cover', node: 'top_cover', side: 'edge', anchor: [0, -.06, 2.9], pr: 2, noInside: true, t: 'Top cover', s: 'brushed aluminium look', d: 'Top part of the open-hardware enclosure with the display window, four button openings and corner screw holes.' },
   { id: 'esp32', node: 'esp32', side: 'back', pr: 1, t: 'ESP32-S3-WROOM-1', s: 'Wi-Fi + BLE · PCB antenna', d: 'Espressif ESP32-S3 module is the brain of the card; its PCB antenna sits at the board edge, clear of metal.' },
-  { id: 'qr', node: 'qr_scanner', side: 'back', pr: 1, t: 'QR scanner', s: 'GM803 module', d: 'The scanner module looks out through a lens opening in the back shell and reads QR codes for invoices, Wi-Fi and node connections on the fly.' },
+  { id: 'qr', node: 'qr_scanner', side: 'back', pr: 1, outside: true, act: 'selfie', t: 'Camera · QR scanner', s: 'Tap the camera', d: 'The scanner module looks out through a lens opening in the back shell and reads QR codes for invoices, Wi-Fi and node connections on the fly.' },
   { id: 'battery', node: 'battery', side: 'back', anchor: [3.6, -.62, -.7], pr: 1, t: 'Battery', s: '3.7 V Li-ion polymer', d: 'A flat Li-ion polymer cell sits under the board and charges over USB-C.' },
   { id: 'usbc', node: 'usbc', side: 'edge', pr: 1, t: 'USB-C', s: 'charge + data', d: 'USB-C port for charging and programming, reachable through a cut-out in the bottom edge.' },
   { id: 'sd', node: 'sdcard', side: 'edge', pr: 2, t: 'microSD slot', s: 'TF-015', d: 'microSD card slot on the bottom edge.' },
   { id: 'power', node: 'power_switch', side: 'edge', pr: 1, outside: true, t: 'Power switch', s: 'slide · bottom edge', d: 'Small slide switch with a red actuator turns the card on and off.' },
-  { id: 'buzzer', node: 'buzzer', side: 'back', pr: 3, t: 'Buzzer', s: 'BEEP', d: 'Tiny SMD buzzer for audible feedback.' },
+  { id: 'buzzer', node: 'buzzer', side: 'back', pr: 1, outside: true, act: 'sound', t: 'Speaker · buzzer', s: 'Tap the speaker · sound off', d: 'Tiny SMD buzzer for audible feedback.' },
   { id: 'shell', node: 'back_shell', side: 'edge', anchor: [0, -.47, 2.9], pr: 2, noInside: true, t: 'Back shell', s: '3D-printed', d: 'Printable back chassis from the published STL. It carries the brass heat-set inserts and has openings for USB-C, microSD, the switch and the scanner lens.' },
   { id: 'insert', node: 'insert_1', side: 'back', pr: 3, noInside: true, t: 'Brass inserts ×4', s: 'M2.5 · heat-set', d: 'Four heat-set brass inserts give durable threads in the printed back part.' },
   { id: 'antenna', node: 'esp32', side: 'back', pr: 1, t: 'PCB antenna', s: 'ESP32-S3 · board edge', d: "The module's PCB antenna sits at the board's edge, clear of the metal shield." },
@@ -619,13 +636,15 @@ function buildHotspots() {
     else p = new THREE.Vector3(c.x, c.y, box.max.z + .05);
     const a = new THREE.Object3D(); a.position.copy(p); layer[m.userData.layer].add(a); anchors[h.id] = a;
     const ca = new THREE.Object3D(); ca.position.copy(c); layer[m.userData.layer].add(ca); anchors[h.id + '_c'] = ca;
-    const el = document.createElement('div'); el.className = 'hs R'; el.innerHTML = `<i class="ln"></i><i class="dot"></i><button class="lab">${h.t}<small>${h.s}</small></button>`;
+    const el = document.createElement('div'); el.className = 'hs R'; if (h.act === 'sound') el.dataset.snd = 'off';
+    el.innerHTML = `<i class="ln"></i><i class="dot"></i><button class="lab">${h.act === 'sound' ? `<span class="lt">${h.t}<i class="snd" aria-hidden="true">♪ on</i></span>` : h.t}<small>${h.s}</small></button>`;
     const lab = el.querySelector('.lab');
+    if (h.act) lab.title = COMP[h.id].tip;
     lab.addEventListener('click', () => select(h.id));
-    lab.addEventListener('mouseenter', () => preview(h.id));
-    lab.addEventListener('mouseleave', () => unpreview(h.id));
-    lab.addEventListener('focus', () => preview(h.id));
-    lab.addEventListener('blur', () => unpreview(h.id));
+    lab.addEventListener('mouseenter', () => { preview(h.id); if (COMP[h.id]) setHover(h.id, 'label'); });
+    lab.addEventListener('mouseleave', () => { unpreview(h.id); if (COMP[h.id]) setHover(null, 'label'); });
+    lab.addEventListener('focus', () => { preview(h.id); if (COMP[h.id]) setHover(h.id, 'label'); });
+    lab.addEventListener('blur', () => { unpreview(h.id); if (COMP[h.id]) setHover(null, 'label'); });
     $('#hotspots').appendChild(el); hsEls[h.id] = el;
   }
 }
@@ -661,7 +680,7 @@ controls.addEventListener('start', () => { tw = null; frame.applied = frame.h; l
 let lastTouch = performance.now();
 
 function setMode(mode, opts = {}) {
-  S.mode = mode; const p = PRESET[mode];
+  S.autoInside = false; S.mode = mode; const p = PRESET[mode];
   S.explodeT = p.ex;
   const el = (S.flip ? -1 : 1) * p.el * Math.PI / 180;
   flyTo({ az: opts.az ?? p.az, el, rad: fitDist(p.hw, p.hh), tgt: new THREE.Vector3(...p.tgt) });
@@ -733,7 +752,7 @@ canvas.addEventListener('pointermove', e => { if (e.pointerType === 'touch') tou
 ['pointerup', 'pointercancel'].forEach(t => addEventListener(t, e => { if (e.pointerType === 'touch') touchUp(e.pointerId); }));
 canvas.addEventListener('contextmenu', e => { if (e.pointerType === 'touch' || touch.pts.size) e.preventDefault(); });
 $('#labels').addEventListener('click', e => { S.labels = !S.labels; e.currentTarget.classList.toggle('on', S.labels); e.currentTarget.setAttribute('aria-pressed', String(S.labels)); });
-$('#spin').addEventListener('click', e => { S.auto = !S.auto; e.currentTarget.classList.toggle('on', S.auto); e.currentTarget.setAttribute('aria-pressed', String(S.auto)); sway.base = null; lastTouch = performance.now(); });
+$('#spin').addEventListener('click', e => { S.auto = !S.auto; e.currentTarget.classList.toggle('on', S.auto); e.currentTarget.setAttribute('aria-pressed', String(S.auto)); sway.base = null; lastTouch = performance.now() - 2500; });
 
 /* keyboard equivalents */
 function orbitBy(daz, del) {   // keyboard orbit (OrbitControls does not expose rotateLeft/rotateUp publicly)
@@ -860,23 +879,21 @@ FEATURES.forEach((f, i) => {
   $('#feat-list').appendChild(li);
 });
 function applyFeature(f) {
-  if (f.run) f.run(); else if (f.screen != null) drawScreen(typeof f.screen === 'string' ? SCREENS.findIndex(x => x.id === f.screen) : f.screen);
   S.flip = f.focus === 'qr' || f.focus === 'esp32';
   setMode(f.mode); showInfo({ t: f.exp[0], s: 'Feature', d: f.exp[1] }, { pinned: true });
   const link = $('#info-link'); link.hidden = false; link.href = f.ic === 'open' ? 'https://wesatoshis.com/qr' : 'https://wesatoshis.com/'; link.textContent = f.ic === 'open' ? 'Make a node QR code ↗' : 'Explore the card at wesatoshis.com ↗';
   if (f.exp) showExplain(f.exp[0], f.exp[1]);
 }
-/* screen picker: jump to any screen on the card's display */
-SCREENS.forEach((m, i) => { const b = document.createElement('button'); b.type = 'button'; b.dataset.screen = i; b.textContent = m.label; b.setAttribute('aria-pressed', 'false'); b.addEventListener('click', () => { drawScreen(i); announce(); }); $('#screen-picker').appendChild(b); });
+/* no on-page screen picker: the OLED changes only when the card's four physical buttons are pressed on the 3D model */
 
 const COMPONENT_FACTS = {
   oled: 'Press the card’s UP, DOWN, BACK and OK buttons on the model to move around the screen.',
-  qr: 'Reads invoices, Wi-Fi and node codes. Inverted or coloured codes work after scanning an enabling code.',
+  qr: 'Reads invoices, Wi-Fi and node codes. Inverted or coloured codes work after scanning an enabling code. On this page, tap the camera for a joke selfie (no real camera is used).',
   battery: 'Up to three hours of continuous use at full power, and about 35 minutes for a full charge.',
   sd: 'Holds blockchain headers and your encrypted wallet, and installs firmware updates offline.',
   esp32: 'Connects directly to Bitcoin peers and verifies block headers (SPV). A secure element generates your seed during setup.',
   buttons: 'Click UP, DOWN, BACK or OK on the model to move around the screen. The card supports PIN protection and decoy mode.',
-  buzzer: 'Sound can be switched on or off in settings.',
+  buzzer: 'Sound can be switched on or off in settings. On this page, tap the speaker to switch the page’s optional sound on or off; it starts off.',
   shell: 'The enclosure files and assembly specs are published for download.'
 };
 function showInfo(h, { pinned = false, preview = false } = {}) {
@@ -885,6 +902,7 @@ function showInfo(h, { pinned = false, preview = false } = {}) {
   __sidebar.show('detail', { open: !preview, focus: pinned });
   $('#info').classList.toggle('pinned', pinned);
   $('#info').classList.toggle('preview', preview);
+  syncAction(h.id);
 }
 function select(id) {
   const h = HOT.find(x => x.id === id); if (!h) return; S.sel = id;
@@ -893,6 +911,8 @@ function select(id) {
   const a0 = sph();
   flyTo({ az: edge ? a0.az * .4 : a0.az, el: edge ? .35 : dir * 55 * Math.PI / 180, rad: h.id === 'oled' ? fitDist(2.1, 1.5) : fitDist(2.6, 2.2), tgt: p.clone() }, 1000);
   S.flip = dir < 0;
+  // the speaker sits behind the opaque back shell: show the inside view (shell ghosted) so it can be seen and tapped; closing the details goes back
+  if (h.act === 'sound' && S.mode === 'outside') { S.mode = 'inside'; S.autoInside = true; }
   showInfo(h, { pinned: true });
   Object.entries(hsEls).forEach(([k, el]) => el.classList.toggle('act', k === id)); lastTouch = performance.now();
 }
@@ -908,8 +928,8 @@ function unpreview(id) {
   if (h) showInfo(h, { pinned: true });
   else { $('#info').classList.remove('preview', 'pinned'); if (__sidebar.view() === 'detail') __sidebar.back(); }
 }
-function closeInfo() { S.sel = null; $('#info').classList.remove('pinned', 'preview'); Object.values(hsEls).forEach(el => el.classList.remove('act')); if (__sidebar.view() === 'detail') __sidebar.back(); }
-$('#info-x').addEventListener('click', () => { const m = PRESET[S.mode] ? S.mode : 'outside'; setMode(m); });
+function closeInfo() { S.sel = null; if (S.autoInside && S.mode === 'inside' && inside.prev === null) S.mode = 'outside'; S.autoInside = false; if (actBtn) actBtn.hidden = true; $('#info').classList.remove('pinned', 'preview'); Object.values(hsEls).forEach(el => el.classList.remove('act')); if (__sidebar.view() === 'detail') __sidebar.back(); }
+$('#info-x').addEventListener('click', () => { const m = S.autoInside ? 'outside' : PRESET[S.mode] ? S.mode : 'outside'; setMode(m); });
 
 /* explain text (behind the card) */
 let explainTimer = null;
@@ -934,6 +954,7 @@ function nearestCap(cx, cy, radius = 26) {   // forgiving touch target: the tiny
 canvas.addEventListener('pointerdown', e => { down = { x: e.clientX, y: e.clientY, t: performance.now() }; });
 canvas.addEventListener('pointerup', e => {
   if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 6 || performance.now() - down.t > 450) return;
+  const comp = compAt(e.clientX, e.clientY, e.pointerType === 'touch' ? 26 : 14); if (comp) { activate(comp); return; }
   const r = canvas.getBoundingClientRect(); const v = new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
   ray.setFromCamera(v, camera); const hit = ray.intersectObjects([...capMeshes, nodes.screen, nodes.oled_glass, ...(S.gF > .5 ? [] : [nodes.top_cover])], false)[0];
   if (hit && capMeshes.includes(hit.object)) { devKey(capKey(hit.object)); return; }
@@ -944,12 +965,124 @@ canvas.addEventListener('pointerup', e => {
     if (modelHit) { const h = HOT.find(x => nodes[x.node] === modelHit.object); if (h) select(h.id); }
   }
 });
+
+/* ------------------------------------------------------------------ the card's own camera and speaker
+   Clicking the 3D QR scanner (the card's camera) plays the joke-selfie gag; clicking the 3D buzzer (the card's speaker)
+   turns the site's optional sound on or off. Same click rules as the buttons: pointer moved < 6 px, not occluded. */
+const COMP = {
+  qr: { node: 'qr_scanner', tip: 'Tap the camera', verb: 'selfie' },
+  buzzer: { node: 'buzzer', tip: 'Tap the speaker – sound on/off', verb: 'sound' },
+};
+const compIds = Object.keys(COMP);
+const compOf = obj => compIds.find(id => nodes[COMP[id].node] === obj) || null;
+const compTip = document.createElement('div'); compTip.id = 'comp-tip'; compTip.hidden = true; compTip.setAttribute('aria-hidden', 'true'); stage.appendChild(compTip);
+const compRing = document.createElement('div'); compRing.id = 'comp-ring'; compRing.hidden = true; compRing.setAttribute('aria-hidden', 'true'); stage.appendChild(compRing);
+const compStatus = document.createElement('p'); compStatus.id = 'comp-status'; compStatus.className = 'sr-only'; compStatus.setAttribute('role', 'status'); compStatus.setAttribute('aria-live', 'polite'); stage.appendChild(compStatus);
+const compEdges = {};   // orange outline per component, shown while it is hovered
+function compGlow(id) {
+  if (!compEdges[id]) {
+    const m = nodes[COMP[id].node], e = new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry, 30), new THREE.LineBasicMaterial({ color: 0xffa640, transparent: true, opacity: 0, depthTest: false, depthWrite: false }));
+    e.renderOrder = 12; e.visible = false; m.add(e); compEdges[id] = e;
+  }
+  return compEdges[id];
+}
+const gag = { w: 0 };
+const gagOn = () => selfie.active() || gag.w > 0;
+const compCenter = id => new THREE.Box3().setFromObject(nodes[COMP[id].node]).getCenter(new THREE.Vector3());
+function compClient(id) {
+  const c = compCenter(id).project(camera), r = canvas.getBoundingClientRect();
+  return { x: r.left + (c.x * .5 + .5) * r.width, y: r.top + (-c.y * .5 + .5) * r.height, z: c.z };
+}
+const compOccluders = () => blockers.filter(m => !(m === nodes.top_cover && S.gF > .5) && !(m === nodes.back_shell && S.gB > .5));
+/* which component (if any) is under this screen point, reachable and not hidden behind the shell/board/battery */
+function compAt(cx, cy, slack = 14) {
+  if (intro.phase !== 'complete' || !nodes.qr_scanner || gagOn()) return null;
+  const r = canvas.getBoundingClientRect(), v = new THREE.Vector2(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1);
+  const occ = compOccluders(); ray.setFromCamera(v, camera);
+  const hit = ray.intersectObjects([...compIds.map(id => nodes[COMP[id].node]), ...occ], false)[0];
+  if (hit) { const id = compOf(hit.object); if (id) return id; }
+  // forgiving target: the parts are only a few millimetres across, so a point just beside one counts too, if its centre is visible
+  let best = null, bd = slack;
+  for (const id of compIds) {
+    const p = compClient(id); if (p.z > 1) continue; const d = Math.hypot(cx - p.x, cy - p.y); if (d >= bd) continue;
+    const c = compCenter(id), dir = c.clone().sub(camera.position), dist = dir.length(); dir.normalize();
+    rc.set(camera.position, dir); rc.far = dist - .02;
+    if (rc.intersectObjects(occ, false).length) continue;
+    bd = d; best = id;
+  }
+  return best;
+}
+let compHover = null, hoverSrc = '', ptr = null, lastPick = 0, toastUntil = 0;
+function setHover(id, src = 'canvas') {
+  if (id === null && src !== hoverSrc && hoverSrc) return;
+  hoverSrc = id ? src : '';
+  if (id === compHover) return;
+  compHover = id;
+  canvas.style.cursor = id && src === 'canvas' ? 'pointer' : '';
+  for (const k of compIds) if (compEdges[k]) compEdges[k].visible = k === id;
+  if (id) compGlow(id).visible = true;
+  if (!id && performance.now() > toastUntil) { compTip.hidden = true; compRing.hidden = true; }
+  if (id) { compTip.textContent = tipText(id); compTip.hidden = false; compRing.hidden = false; }
+}
+function tipText(id) { return id === 'buzzer' ? `Tap the speaker – sound on/off (${sound.state().enabled ? 'on' : 'off'})` : COMP[id].tip; }
+function placeComp(now) {
+  const id = compHover || (now < toastUntil ? toastId : null);
+  if (!id) return;
+  const p = compClient(id), r = stage.getBoundingClientRect();
+  const x = p.x - r.left, y = p.y - r.top;
+  compRing.style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`;
+  const tw_ = compTip.offsetWidth || 160, left = clamp(x - tw_ / 2, 8, Math.max(8, stageW() - tw_ - 8));
+  compTip.style.left = left.toFixed(0) + 'px'; compTip.style.top = Math.max(8, y - 54).toFixed(0) + 'px';
+  if (compHover && now >= toastUntil) { const t = tipText(compHover); if (compTip.textContent !== t) compTip.textContent = t; }
+  if (compHover && compEdges[id]) compEdges[id].material.opacity = .65 + .3 * Math.sin(now / 220);
+}
+let toastId = null;
+function toast(id, text) { toastId = id; toastUntil = performance.now() + 1800; compTip.textContent = text; compTip.hidden = false; compRing.hidden = false; compStatus.textContent = text; setTimeout(() => { if (performance.now() >= toastUntil && !compHover) { compTip.hidden = true; compRing.hidden = true; } }, 1850); }
+function syncSoundUI(on) {
+  const el = hsEls.buzzer; if (el) { el.dataset.snd = on ? 'on' : 'off'; const sm = el.querySelector('small'); if (sm) sm.textContent = on ? 'Tap the speaker · sound on' : 'Tap the speaker · sound off'; }
+  syncAction();
+}
+sound.onChange(syncSoundUI);
+async function activate(id) {
+  finishIntro();
+  if (id === 'qr') { if (selfie.trigger()) { setHover(null, 'canvas'); compStatus.textContent = 'Taking a joke selfie'; } return; }
+  if (id === 'buzzer') {
+    const was = sound.state().enabled, on = await sound.toggle();
+    toast('buzzer', on ? 'Sound on' : was ? 'Sound off' : 'Sound unavailable');
+  }
+}
+/* info-panel action button (keyboard / screen-reader path): Enter on it does exactly what clicking the part does */
+const actBtn = $('#info-action');
+function syncAction(id = S.sel) {
+  const c = id && COMP[id];
+  if (!c || !actBtn) { if (actBtn) actBtn.hidden = true; return; }
+  actBtn.hidden = false; actBtn.dataset.comp = id;
+  if (id === 'buzzer') { const on = sound.state().enabled; actBtn.textContent = on ? 'Sound is on – turn it off' : 'Sound is off – turn it on'; actBtn.setAttribute('aria-pressed', String(on)); }
+  else { actBtn.textContent = 'Take the joke selfie'; actBtn.removeAttribute('aria-pressed'); }
+}
+if (actBtn) actBtn.addEventListener('click', () => activate(actBtn.dataset.comp));
+document.querySelectorAll('[data-comp]').forEach(b => { if (b !== actBtn) b.addEventListener('click', () => select(b.dataset.comp)); });
+canvas.addEventListener('pointermove', e => { if (e.pointerType === 'mouse' && !e.buttons) ptr = { x: e.clientX, y: e.clientY }; else if (e.buttons) { ptr = null; setHover(null, 'canvas'); } });
+canvas.addEventListener('pointerleave', () => { ptr = null; setHover(null, 'canvas'); });
+canvas.addEventListener('pointerdown', () => { ptr = null; setHover(null, 'canvas'); });
+function pickHover(now) {
+  if (!ptr || now - lastPick < 70) return; lastPick = now;
+  const id = compAt(ptr.x, ptr.y); if (id !== compHover && (id || hoverSrc !== 'label')) setHover(id, 'canvas');
+}
+/* the turn: rotate the whole card so the lens faces the viewer, then back (see selfie.js for the timing) */
+const gagQ = new THREE.Quaternion(), idQ = new THREE.Quaternion(), tmpQ = new THREE.Quaternion();
+function gagQuat(w) {
+  const lens = new THREE.Vector3(0, -1, 0), to = camera.position.clone().sub(controls.target).normalize();
+  if (lens.dot(to) < -.999) tmpQ.setFromAxisAngle(new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0), Math.PI); else tmpQ.setFromUnitVectors(lens, to);
+  return gagQ.copy(idQ).slerp(tmpQ, w);
+}
 const pressing = new Map();
 function press(m) { pressing.set(m, performance.now()); }
 function pressCap(k) { const n = Object.keys(CAPKEY).find(x => CAPKEY[x] === k); if (n && nodes[n]) press(nodes[n]); }
 
 /* ------------------------------------------------------------------ main loop */
-const sway = { base: null, phase: 0 };
+const sway = { base: null, phase: 0 };   // legacy marker, no longer drives the camera
+const AUTO_SPEED = 1.5;                 // OrbitControls units: 2.0 = one turn per 30 s at 60 fps; this is one turn per 40 s
 const clock = new THREE.Clock(); const tmpV = new THREE.Vector3(), rc = new THREE.Raycaster(); let lastOcc = 0, lastScr = performance.now();
 const baseCapY = {};
 
@@ -971,7 +1104,7 @@ addEventListener('resize', refit);
 $('#sidebar').addEventListener('sbresize', refit);   // the user dragged the side panel's resize handle
 
 function tick() {
-  const dt = Math.min(clock.getDelta(), .05), now = performance.now();
+  const rawDt = Math.min(clock.getDelta(), .25), dt = Math.min(rawDt, .05), now = performance.now();
   const rm = prefersReduced();
   const hT = (inside.prev ?? S.mode) !== 'exploded' ? S.explodeT : 0;
   frame.h = rm ? hT : frame.h + (hT - frame.h) * (1 - Math.exp(-dt * 5)); if (Math.abs(frame.h - hT) < .002) frame.h = hT;
@@ -987,6 +1120,15 @@ function tick() {
   const t = S.explode;
   for (const k in LAYERS) { const L = layer[k]; L.position.y = LAYERS[k].off * t; if (LAYERS[k].spin) L.rotation.y = 0; }
   stepIntro(now);
+  if (rm) { hover.x = hover.y = 0; hover.rx = hover.ry = 0; }
+  else {
+    const k = 1 - Math.exp(-dt * 5), active = intro.phase === 'complete';
+    hover.rx += ((active ? -hover.y * .025 : 0) - hover.rx) * k;
+    hover.ry += ((active ? hover.x * .035 : 0) - hover.ry) * k;
+  }
+  model.rotation.set(hover.rx, hover.ry, 0);
+  gag.w = selfie.turn(now);   // the card turns its camera toward the viewer during the selfie gag, then back
+  if (gag.w > 0) model.quaternion.premultiply(gagQuat(gag.w));
   for (let i = 0; i < 4; i++) { /* screws spin about their own axes while lifting */ }
   // caps press animation
   for (const [m, t0] of pressing) { const k = (now - t0) / 260; if (!(m.uuid in baseCapY)) baseCapY[m.uuid] = m.position.y; m.position.y = baseCapY[m.uuid] - Math.sin(clamp(k, 0, 1) * Math.PI) * .05; if (k >= 1) { m.position.y = baseCapY[m.uuid]; pressing.delete(m); } }
@@ -998,21 +1140,18 @@ function tick() {
   M.decal.opacity = 1 - S.gF; M.decal.needsUpdate = false; M.pc.opacity = .3 * (1 - S.gF * .7);
   // ground follows the lowest layer
   ground.position.y = -.74 + LAYERS.shell.off * t - .5; ground.scale.setScalar(1 + .25 * t); ground.material.opacity = .95 - .2 * t;
-  // idle sway
-  if (intro.phase === 'complete' && S.auto && !tw && !S.sel && now - lastTouch > 2500) {
-    if (sway.base === null) { sway.base = Math.atan2(camera.position.x - controls.target.x, camera.position.z - controls.target.z); sway.phase = 0; }
-    sway.phase += dt * .38; const az = sway.base + Math.sin(sway.phase) * .8; const prev = Math.atan2(camera.position.x - controls.target.x, camera.position.z - controls.target.z);
-    const d = az - prev; const o = camera.position.clone().sub(controls.target).applyAxisAngle(new THREE.Vector3(0, 1, 0), d); camera.position.copy(controls.target).add(o);
-  }
-  controls.update();
-  if (intro.phase === 'complete') { updateHotspots(now); updatePhoto(); }
+  // auto-rotate: OrbitControls' own turntable, identical with or without prefers-reduced-motion; runs when Auto is on and the visitor has been idle
+  controls.autoRotate = S.auto && intro.phase === 'complete' && !tw && !S.sel && !gagOn() && !document.hidden && now - lastTouch > 2500;
+  controls.autoRotateSpeed = AUTO_SPEED;
+  controls.update(rawDt);
+  if (intro.phase === 'complete') { pickHover(now); placeComp(now); updateHotspots(now); updatePhoto(); }
   sky.stars.position.copy(camera.position);
   camera.updateMatrixWorld();
   renderer.render(scene, camera);
 }
 
 function updateHotspots(now) {
-  const show = S.labels, w = stageW(), h = stageH(), small = !isDesktop();
+  const show = S.labels && !gagOn(), w = stageW(), h = stageH(), small = !isDesktop();
   const doOcc = now - lastOcc > 180; if (doOcc) lastOcc = now;
   const exploded = S.explode > .25, inside = S.mode === 'inside';
   const cx = isDesktop() ? (w - (panelPx() - 12)) / 2 : w / 2, limitR = isDesktop() ? w - (panelPx() + 6) : w - 6;
@@ -1020,7 +1159,7 @@ function updateHotspots(now) {
   for (const hs of HOT) {
     const el = hsEls[hs.id]; if (!el) continue;
     let vis = !!show && !(S.sel === 'oled' && hs.id === 'oled') && (!S.sel || S.sel === hs.id) && (exploded || inside ? !(inside && !exploded && hs.noInside) : !!(hs.outside && hs.pr <= 1));
-    if (small && (exploded || inside) && hs.pr > 1) vis = false;
+    if (small && (exploded || inside) && hs.pr > 1 && !hs.act) vis = false;
     let x = 0, y = 0;
     if (vis) {
       anchors[hs.id].getWorldPosition(tmpV);
@@ -1061,6 +1200,12 @@ function updateHotspots(now) {
     (side === 'L' ? L : R).push(it);
   }
   place(L, 'L'); place(R, 'R');
+  // a neighbouring label drawn over the camera / speaker must not swallow its click: make it click-through (and dim) while it covers one
+  if (doOcc) {
+    const pts = compIds.filter(id => hsEls[id] && hsEls[id].classList.contains('show')).map(id => compClient(id));
+    for (const it of items) { const lab = it.el.querySelector('.lab'); if (COMP[it.hs.id]) continue;
+      const r = lab.getBoundingClientRect(); lab.classList.toggle('under', pts.some(p => p.x >= r.left - 8 && p.x <= r.right + 8 && p.y >= r.top - 8 && p.y <= r.bottom + 8)); }
+  }
 }
 
 /* ------------------------------------------------------------------ boot */
@@ -1074,23 +1219,22 @@ function updateHotspots(now) {
   camera.position.setFromSpherical(new THREE.Spherical(rad * 1.5, Math.PI / 2 - el, az - .6)).add(new THREE.Vector3(...p.tgt)); controls.target.set(...p.tgt);
   const sc = hash.find(x => x.startsWith('screen=')); if (sc) drawScreen(+sc.split('=')[1] || 0);
   if (hash.includes('still')) S.auto = false;
-  if (reducedMotion) { S.auto = false; sway.phase = 0; }
   $('#spin').classList.toggle('on', S.auto); $('#spin').setAttribute('aria-pressed', String(S.auto));
   S.mode = mode; S.explodeT = p.ex; S.explode = p.ex;
-  if (!prefersReduced() && !hash.includes('still')) {
+  if (!hash.includes('still')) {   // the full intro plays even with prefers-reduced-motion (owner decision)
     intro.phase = 'empty'; intro.start = performance.now(); ground.visible = false;
     for (const L of Object.values(layer)) L.visible = false;
     skipIntro.hidden = false;
   }
   flyTo({ az, el, rad, tgt: new THREE.Vector3(...p.tgt) }, 1600);
-  if (hash.includes('still') || prefersReduced()) { tw = null; camera.position.setFromSpherical(new THREE.Spherical(rad, Math.PI / 2 - el, az)).add(new THREE.Vector3(...p.tgt)); controls.update(); }
+  if (hash.includes('still')) { tw = null; camera.position.setFromSpherical(new THREE.Spherical(rad, Math.PI / 2 - el, az)).add(new THREE.Vector3(...p.tgt)); controls.update(); }
   const sel = hash.find(x => x.startsWith('select=')); if (sel) setTimeout(() => select(sel.split('=')[1]), 100);
   $('#bar').style.width = '100%'; setTimeout(() => $('#loader').classList.add('done'), 250);
   updateScreenUI();
   renderer.setAnimationLoop(tick);
   window.__viz = { S, M, scene, nodes, setMode, select, camera, controls, drawScreen, THREE, renderer, layer, anchors, sky,
-    intro: { state: () => ({ phase: intro.phase, spread: intro.spread }), skip: finishIntro }, inside: () => ({ on: insideOn(), prev: inside.prev, ...inside }), setExplode, explode: () => ({ target: S.explodeT, current: S.explode }), input: { touchDown, touchMove, touchUp }, screens: SCREENS, screenCanvas: scrCanvas, screenText: i => { drawScreen(i); return texts.slice(); }, currentScreen: () => curScreen, viewShift: () => view.cur,
-    capClient,
+    sound, intro: { state: () => ({ phase: intro.phase, spread: intro.spread }), skip: finishIntro }, inside: () => ({ on: insideOn(), prev: inside.prev, ...inside }), setExplode, explode: () => ({ target: S.explodeT, current: S.explode }), input: { touchDown, touchMove, touchUp }, screens: SCREENS, screenCanvas: scrCanvas, screenText: i => { drawScreen(i); return texts.slice(); }, currentScreen: () => curScreen, viewShift: () => view.cur,
+    capClient, comp: { at: compAt, client: compClient, hover: () => compHover, activate, selfie, tipText, gagWeight: () => gag.w, autoRotating: () => controls.autoRotate },
     ui: { states: () => Object.keys(UI), state: () => dev.cur, data: () => JSON.parse(snapshot()), key: devKey, snapshot, restore, stats: paintStats, go, setManual: v => { manualTimers = !!v; clearTimeout(dev.timer); }, setTimerScale: v => { timerScale = v; }, fireAuto: () => { const u = UI[dev.cur]; if (u.auto) go(u.auto.to); }, hasAuto: () => !!UI[dev.cur].auto, announced: () => announced, setPay: (k, f) => { dev.payKind = k; dev.payFrom = f; } } };
   window.__product = {
     photos: PHOTOS.map(p => ({ id: p.id, label: p.cap, src: p.src })),

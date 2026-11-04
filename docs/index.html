@@ -77,8 +77,9 @@
           </div>
           <ul id="feat-list"></ul>
           <section class="screens" aria-labelledby="screens-h">
-            <h3 id="screens-h">On the screen</h3>
-            <div id="screen-picker" role="group" aria-label="Choose a screen on the card"></div>
+            <h3 id="screens-h">Try the card</h3>
+            <p class="sim-note"><b>Demo screen.</b> The screen is a demo: press the card’s four buttons on the 3D model to move around it. Its camera and speaker work too — tap them on the card (turn it over to find them).</p>
+            <p class="comp-links"><button type="button" class="linkbtn" data-comp="qr">Show the camera</button><button type="button" class="linkbtn" data-comp="buzzer">Show the speaker</button></p>
             <p id="screen-now" class="sr-only" role="status" aria-live="polite"></p>
             <p id="sim-live" class="sr-only" role="status" aria-live="polite"></p>
           </section>
@@ -92,7 +93,7 @@
               <dt>Look around</dt><dd>Drag to orbit · scroll or pinch to zoom</dd>
               <dt>Explode</dt><dd><kbd>Ctrl</kbd> + scroll · two-finger drag up/down · <kbd>[</kbd> <kbd>]</kbd> or <kbd>Ctrl</kbd> + <kbd>↑</kbd> <kbd>↓</kbd></dd>
               <dt>See inside</dt><dd>Hold <kbd>Shift</kbd> · touch and hold the scene · <kbd>I</kbd> toggles</dd>
-              <dt>Use the card</dt><dd>Press its four buttons in the 3D view</dd>
+              <dt>Use the card</dt><dd>Press its four buttons in the 3D view · tap its camera for a selfie · tap its speaker for sound on/off (turn the card over first)</dd>
               <dt>Keys</dt><dd><kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd> orbit · <kbd>+</kbd><kbd>-</kbd> zoom · <kbd>L</kbd> labels · <kbd>A</kbd> auto-rotate · <kbd>Esc</kbd> close</dd>
             </dl>
           </details>
@@ -102,6 +103,7 @@
           <p class="info-eyebrow"><em id="info-s"></em><span class="pin-dot" aria-hidden="true" title="Pinned">📌</span></p>
           <h3 id="info-t"></h3>
           <p id="info-d"></p>
+          <button id="info-action" class="info-action" type="button" hidden></button>
           <a id="info-link" href="https://wesatoshis.com/" target="_blank" rel="noopener" hidden>Explore at Wesatoshis ↗</a>
           <button id="info-x" class="info-close" type="button">Close details</button>
         </div>

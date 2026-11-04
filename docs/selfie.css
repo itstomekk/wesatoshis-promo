@@ -1,0 +1,23 @@
+.selfie-flash { position:absolute; inset:0; z-index:20; pointer-events:none; background:#ffe5c4; opacity:0; transition:opacity .18s ease-out; }
+.selfie-flash.active { opacity:.16; transition:opacity .12s ease-in; }
+/* reduced motion: no hard flash, a soft slow fade instead */
+.selfie-flash.soft { transition:opacity .5s ease-in-out; }
+.selfie-flash.soft.active { opacity:.09; transition:opacity .5s ease-in-out; }
+/* the photo: a polaroid-style print that flies in from deep in the galaxy and lands large and sharp */
+#selfie-dialog { box-sizing:border-box; position:fixed; z-index:50; inset:0; width:100vw; max-width:none; height:100dvh; max-height:none; margin:0; padding:0; border:0; background:transparent; color:white; display:none; place-items:center; overflow:hidden; --incoming:1200ms; }
+#selfie-dialog[open] { display:grid; }
+#selfie-dialog::backdrop { background:#000c; animation:selfie-backdrop var(--incoming) ease-out both; }
+#selfie-photo { margin:0; padding:12px 12px 14px; width:min(560px, calc(100vw - 32px)); box-sizing:border-box; background:#f4efe6; color:#1b1a18; border-radius:6px; box-shadow:0 18px 60px #000c, 0 0 0 1px #0004; text-align:center; transform-origin:50% 50%; animation:selfie-incoming var(--incoming) cubic-bezier(.16,.8,.28,1) both; will-change:transform, filter, opacity; }
+#selfie-photo img { display:block; width:100%; max-height:calc(100dvh - 170px); object-fit:contain; background:#111; border-radius:2px; }
+#selfie-photo figcaption { margin:10px 4px 0; font:600 14px/1.35 system-ui,sans-serif; }
+#selfie-photo { position:relative; }
+#selfie-close { position:absolute; z-index:2; right:20px; top:20px; width:44px; height:44px; border:1px solid #ffffff80; border-radius:50%; color:white; background:#111d; font-size:28px; cursor:pointer; animation:selfie-fade .35s ease-out calc(var(--incoming) * .75) both; }
+#selfie-close:focus-visible { outline:3px solid white; outline-offset:3px; }
+@keyframes selfie-incoming {
+  0%   { transform:translate(-9vw,-14vh) scale(.04) rotate(-22deg); filter:blur(3px) brightness(.5); opacity:.55; }
+  55%  { opacity:1; }
+  82%  { transform:translate(0,0) scale(1.03) rotate(3.5deg); filter:blur(.4px) brightness(.95); }
+  100% { transform:translate(0,0) scale(1) rotate(0deg); filter:none; opacity:1; }
+}
+@keyframes selfie-backdrop { from { background:#0000; } to { background:#000c; } }
+@keyframes selfie-fade { from { opacity:0; } to { opacity:1; } }
