@@ -29,7 +29,7 @@ const pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.035).texture;
 scene.environmentIntensity = 0.8; scene.environmentRotation.y = 2.4;
 
-const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 200);
+const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 320);
 const controls = new OrbitControls(camera, canvas);
 controls.enableDamping = true; controls.dampingFactor = 0.075;
 controls.minDistance = 2.2; controls.maxDistance = 90; controls.enablePan = false;
@@ -40,76 +40,130 @@ const fill = new THREE.DirectionalLight(0x9db8ff, 0.55); fill.position.set(-7, 3
 const rim = new THREE.DirectionalLight(0xF7931A, .7); rim.position.set(-4, 2, -8); scene.add(rim);
 const under = new THREE.DirectionalLight(0xdfe6ff, 0.8); under.position.set(2, -8, 3); scene.add(under);
 
-/* ------------------------------------------------------------------ cyber-galaxy sky: part of the 3D scene (camera-attached), not a screen-fixed image */
-function makeSky() {
-  const N = isDesktop() ? 512 : 384, L = 128;
-  const hash = (x, y, z) => { let h = Math.imul(x | 0, 374761393) ^ Math.imul(y | 0, 668265263) ^ Math.imul(z | 0, 1274126177); h = Math.imul(h ^ (h >>> 13), 1103515245); h ^= h >>> 16; return (h >>> 0) / 4294967296; };
-  const sm = t => t * t * (3 - 2 * t);
-  const vn = (x, y, z) => {
-    const xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z), fx = sm(x - xi), fy = sm(y - yi), fz = sm(z - zi);
-    const c = (a, b, d) => hash(xi + a, yi + b, zi + d);
-    const x00 = c(0, 0, 0) + (c(1, 0, 0) - c(0, 0, 0)) * fx, x10 = c(0, 1, 0) + (c(1, 1, 0) - c(0, 1, 0)) * fx;
-    const x01 = c(0, 0, 1) + (c(1, 0, 1) - c(0, 0, 1)) * fx, x11 = c(0, 1, 1) + (c(1, 1, 1) - c(0, 1, 1)) * fx;
-    const y0 = x00 + (x10 - x00) * fy, y1 = x01 + (x11 - x01) * fy; return y0 + (y1 - y0) * fz;
-  };
-  const fbm = (x, y, z, o = 5) => { let a = .5, f = 1, s = 0; for (let i = 0; i < o; i++) { s += a * vn(x * f + i * 17.3, y * f + i * 5.1, z * f + i * 9.7); f *= 2.03; a *= .5; } return s; };
-  // cube faces use the GL convention; three.js mirrors x when sampling a CubeTexture background
-  const faceDir = (f, u, v) => {
-    let x, y, z;
-    switch (f) { case 0: x = 1; y = -v; z = -u; break; case 1: x = -1; y = -v; z = u; break; case 2: x = u; y = 1; z = v; break; case 3: x = u; y = -1; z = -v; break; case 4: x = u; y = -v; z = 1; break; default: x = -u; y = -v; z = -1; }
-    const l = Math.hypot(x, y, z); return [-x / l, y / l, z / l];
-  };
-  const dirFace = (w) => {
-    const gx = -w[0], gy = w[1], gz = w[2], ax = Math.abs(gx), ay = Math.abs(gy), az = Math.abs(gz); let f, u, v;
-    if (ax >= ay && ax >= az) { if (gx > 0) { f = 0; u = -gz / ax; v = -gy / ax; } else { f = 1; u = gz / ax; v = -gy / ax; } }
-    else if (ay >= az) { if (gy > 0) { f = 2; u = gx / ay; v = gz / ay; } else { f = 3; u = gx / ay; v = -gz / ay; } }
-    else if (gz > 0) { f = 4; u = gx / az; v = -gy / az; } else { f = 5; u = -gx / az; v = -gy / az; }
-    return { f, i: Math.max(0, Math.min(N - 1, Math.floor((u + 1) / 2 * N))), j: Math.max(0, Math.min(N - 1, Math.floor((v + 1) / 2 * N))) };
-  };
-  const nrm = (a) => { const l = Math.hypot(...a); return a.map(x => x / l); };
-  const GAL = nrm([.28, .9, .33]), R1 = nrm([.8, .25, -.45]), R2 = nrm([-.35, .55, .75]);
-  const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-  const shade = (d) => {
-    const [x, y, z] = d, band = Math.exp(-Math.pow(dot(d, GAL) / .3, 2));
-    const n1 = fbm(x * 1.8 + 3, y * 1.8 + 1, z * 1.8 + 7), n2 = fbm(x * 3.2 - 5, y * 3.2 + 9, z * 3.2 - 2, 4), n3 = fbm(x * 7 + 11, y * 7 - 3, z * 7 + 5, 3);
-    const cy = Math.max(0, n1 - .42) * 2.2 * (.25 + .75 * band), mg = Math.max(0, n2 - .47) * 2.4 * (.2 + .8 * band);
-    const dust = 1 - .55 * Math.min(1, Math.max(0, n3 - .52) * 3) * band, core = band * (.35 + .65 * n1);
-    const r1 = Math.exp(-Math.pow(dot(d, R1) / .03, 2)) * .8, r2 = Math.exp(-Math.pow(dot(d, R2) / .024, 2)) * .6;
-    return [2 + (cy * 8 + mg * 46 + core * 14 + r2 * 18) * dust, 3 + (cy * 40 + mg * 8 + core * 18 + r1 * 26 + r2 * 6) * dust, 8 + (cy * 62 + mg * 60 + core * 34 + r1 * 36 + r2 * 40) * dust];
-  };
-  const faces = [];
-  for (let f = 0; f < 6; f++) {
-    const M2 = L + 2, lo = document.createElement('canvas'); lo.width = lo.height = M2; const lg = lo.getContext('2d'); const img = lg.createImageData(M2, M2);   // one extra texel on every side so the face edges interpolate correctly
-    for (let j = 0; j < M2; j++) for (let i = 0; i < M2; i++) { const c = shade(faceDir(f, (i - .5) / L * 2 - 1, (j - .5) / L * 2 - 1)), k = (j * M2 + i) * 4; img.data[k] = c[0]; img.data[k + 1] = c[1]; img.data[k + 2] = c[2]; img.data[k + 3] = 255; }
-    lg.putImageData(img, 0, 0);
-    const hi = document.createElement('canvas'); hi.width = hi.height = N; const hg = hi.getContext('2d'); hg.imageSmoothingEnabled = true; hg.imageSmoothingQuality = 'high'; hg.drawImage(lo, 1, 1, L, L, 0, 0, N, N); faces.push(hi);
-  }
-  const cube = new THREE.CubeTexture(faces); cube.colorSpace = THREE.SRGBColorSpace; cube.needsUpdate = true;
-  // crisp stars as camera-following points: sharp at any zoom, hidden behind the model by the depth test
-  const r = rng(2025), COUNT = isDesktop() ? 3200 : 2000, pos = new Float32Array(COUNT * 3), col = new Float32Array(COUNT * 3), size = new Float32Array(COUNT);
-  for (let i = 0; i < COUNT; i++) {
-    const z = r() * 2 - 1, a = r() * Math.PI * 2, s = Math.sqrt(1 - z * z), b = Math.pow(r(), 5), tint = r();
-    pos.set([s * Math.cos(a) * 120, z * 120, s * Math.sin(a) * 120], i * 3);
-    const base = tint < .18 ? [.45, .85, 1] : tint < .27 ? [1, .55, .95] : tint < .3 ? [1, .72, .4] : [.85, .9, 1], k = .3 + .7 * b;
-    col.set([base[0] * k, base[1] * k, base[2] * k], i * 3); size[i] = 1.5 + 2.6 * b;
-  }
-  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('aCol', new THREE.BufferAttribute(col, 3)); geo.setAttribute('size', new THREE.BufferAttribute(size, 1));
-  const mat = new THREE.ShaderMaterial({ uniforms: { uPx: { value: 1 } }, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
-    vertexShader: 'attribute float size; attribute vec3 aCol; varying vec3 vC; uniform float uPx; void main(){ vC=aCol; gl_PointSize=size*uPx; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
-    fragmentShader: 'varying vec3 vC; void main(){ float d=length(gl_PointCoord-.5)*2.; float a=smoothstep(1.,.1,d); a*=a; gl_FragColor=vec4(vC*a,1.0); }' });
-  const stars = new THREE.Points(geo, mat); stars.frustumCulled = false; stars.renderOrder = -5;
-  function seamError() {   // largest colour step across the 12 cube edges (nebula only)
-    const px = faces.map(c => c.getContext('2d').getImageData(0, 0, N, N).data); let worst = 0;
-    for (let f = 0; f < 6; f++) for (let t = 0; t < N; t += 4) for (const [i, j, du, dv] of [[t, 0, 0, -1], [t, N - 1, 0, 1], [0, t, -1, 0], [N - 1, t, 1, 0]]) {
-      const w = faceDir(f, (i + .5) / N * 2 - 1 + du * 2 / N, (j + .5) / N * 2 - 1 + dv * 2 / N), o = dirFace(w), a = (j * N + i) * 4, b = (o.j * N + o.i) * 4;
-      for (let c = 0; c < 3; c++) worst = Math.max(worst, Math.abs(px[f][a + c] - px[o.f][b + c]));
+/* ------------------------------------------------------------------ cyber-galaxy sky and logo nebula
+   All of it is part of the 3D scene, not a screen-fixed image: the nebula is baked once on the GPU into a cube map
+   (2048 px faces on desktop, 1024 on phones) used as scene.background; stars are crisp camera-following points;
+   the sky is part of the scene. */
+const GLSL_NOISE = `
+float h31(vec3 p){ p=fract(p*vec3(.1031,.1030,.0973)); p+=dot(p,p.yxz+33.33); return fract((p.x+p.y)*p.z); }
+float vnoise(vec3 x){ vec3 i=floor(x); vec3 f=fract(x); f=f*f*(3.0-2.0*f);
+  return mix(mix(mix(h31(i),h31(i+vec3(1.,0.,0.)),f.x),mix(h31(i+vec3(0.,1.,0.)),h31(i+vec3(1.,1.,0.)),f.x),f.y),
+             mix(mix(h31(i+vec3(0.,0.,1.)),h31(i+vec3(1.,0.,1.)),f.x),mix(h31(i+vec3(0.,1.,1.)),h31(i+vec3(1.,1.,1.)),f.x),f.y),f.z); }
+float fbm(vec3 p,int oct){ float a=.5,s=0.; for(int i=0;i<6;i++){ if(i>=oct) break; s+=a*vnoise(p); p=p*2.03+vec3(17.3,5.1,9.7); a*=.5; } return s; }
+`;
+const NEBULA_FRAG = `precision highp float; varying vec3 vDir;
+uniform sampler2D uMask; uniform vec3 uC; uniform vec3 uR; uniform vec3 uU; uniform float uHalf; uniform float uGain;
+${GLSL_NOISE}
+float dustStars(vec3 d,float s,float thr){ vec3 p=d*s; vec3 id=floor(p); vec3 f=fract(p); float h=h31(id); if(h<thr) return 0.;
+  vec3 c=vec3(h31(id+7.1),h31(id+13.7),h31(id+29.3))*.6+.2; float r=length(f-c); float b=(h-thr)/(1.-thr); return smoothstep(.15,.0,r)*(.3+.7*b); }
+void main(){
+  vec3 d=normalize(vDir);
+  vec3 GAL=normalize(vec3(.28,.9,.33)), R1=normalize(vec3(.8,.25,-.45)), R2=normalize(vec3(-.35,.55,.75));
+  float band=exp(-pow(dot(d,GAL)/.3,2.));
+  float n1=fbm(d*1.8+vec3(3.,1.,7.),5), n2=fbm(d*3.2+vec3(-5.,9.,-2.),5), n3=fbm(d*7.+vec3(11.,-3.,5.),4), fine=fbm(d*26.+vec3(2.,8.,4.),3);
+  float cy=max(0.,n1-.42)*2.2*(.25+.75*band)*(.5+1.0*fine);
+  float mg=max(0.,n2-.47)*2.4*(.2+.8*band)*(.55+.9*fine);
+  float lane=1.-.6*min(1.,max(0.,n3-.52)*3.)*band;
+  float core=band*(.35+.65*n1);
+  float r1=exp(-pow(dot(d,R1)/.03,2.))*.8, r2=exp(-pow(dot(d,R2)/.024,2.))*.6;
+  vec3 c=vec3(2.+(cy*8.+mg*46.+core*14.+r2*18.)*lane, 3.+(cy*40.+mg*8.+core*18.+r1*26.+r2*6.)*lane, 8.+(cy*62.+mg*60.+core*34.+r1*36.+r2*40.)*lane)/255.;
+  float sd=dustStars(d,150.,.90)+dustStars(d,300.,.94)*.8+dustStars(d,520.,.965)*.7;
+  c+=vec3(.8,.88,1.)*sd*(.10+.30*band)*lane;
+  /* nebula shaped like the Wesatoshis hood mark: soft gas body, dark face opening, two orange eyes */
+  float z=dot(d,uC);
+  if(z>.2){
+    vec2 uv=vec2(dot(d,uR),dot(d,uU))/z/uHalf;
+    /* two-scale domain warp breaks the clean logo outline into wisps; ridged noise adds filaments; dust lanes cut dark veins */
+    vec3 q=d*5.0+vec3(4.,2.,9.);
+    vec2 w=vec2(fbm(q,4),fbm(q+vec3(7.,3.,1.),4))-.5;
+    vec3 q2=d*15.+vec3(3.,7.,1.)+vec3(w*2.,0.);
+    vec2 w2=vec2(fbm(q2,3),fbm(q2+vec3(5.,1.,8.),3))-.5;
+    vec2 tc=(uv+w*.12+w2*.04)*.5+.5;
+    if(tc.x>-.2&&tc.x<1.2&&tc.y>-.2&&tc.y<1.2){
+      vec3 m=texture2D(uMask,clamp(tc,0.,1.)).rgb;
+      float eyeM=texture2D(uMask,(uv+w2*.02)*.5+.5).b;
+      float cl=fbm(d*8.+vec3(1.,6.,3.)+vec3(w*1.6,0.),5), cl2=fbm(d*21.+vec3(8.,2.,5.),4);
+      float rid=1.-abs(2.*fbm(d*11.+vec3(w*2.4,2.),5)-1.); rid=rid*rid*rid;
+      float dust=smoothstep(.50,.78,fbm(d*17.+vec3(9.,4.,2.)+vec3(w2*3.,0.),4));
+      float edge=smoothstep(.10,.5,m.g)*(1.-smoothstep(.5,.95,m.g))*(.60+.65*rid);
+      float body=(m.g*(.30+.95*cl)+m.r*.42*(.15+1.1*cl)+edge*.55*rid)*(.45+1.1*rid)*(.70+.55*cl2);
+      body*=1.-.6*dust;
+      body*=smoothstep(-.02,.30,tc.y+.10*(cl-.5));   // the hood's flat base dissolves into loose gas instead of a straight edge
+      vec3 gas=mix(vec3(.16,.09,.40),vec3(.50,.16,.50),smoothstep(.30,.85,cl*(.6+rid)));
+      gas=mix(gas,vec3(.08,.36,.52),smoothstep(.2,.9,edge*(1.2-cl)+.18*uv.y));
+      c+=gas*body*uGain*.52;
+      float eyeCl=(.62+.70*cl2)*(1.-.35*dust);
+      c+=(vec3(1.,.48,.10)*eyeM*eyeCl*.58+vec3(1.,.72,.40)*pow(eyeM,4.)*.26*(.7+.6*rid))*uGain;
     }
-    return worst;
   }
-  return { cube, stars, faces, seamError, animated: false, setPixelRatio: v => { mat.uniforms.uPx.value = v; } };
+  gl_FragColor=vec4(pow(max(c,0.),vec3(2.2)),1.);
+}`;
+const STAR_VERT = 'attribute float size; attribute vec3 aCol; varying vec3 vC; varying float vS; uniform float uPx; void main(){ vC=aCol; vS=size; gl_PointSize=size*uPx; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }';
+const STAR_FRAG = 'varying vec3 vC; varying float vS; void main(){ float d=length(gl_PointCoord-.5)*2.; float core=smoothstep(.66,.22,d); float halo=pow(max(0.,1.-d),3.)*.34*step(2.4,vS); gl_FragColor=vec4(vC*(core+halo),1.0); }';
+
+/* the hood mark from favicon.svg as a three-channel mask: R = wide halo, G = body, B = eyes */
+function hoodMaskCanvas(S = 512) {
+  const BODY = new Path2D('M6 58V30C6 14.6 13.8 8 32 8s26 6.6 26 22v28ZM10 39v12h44V39Z'), LIDS = new Path2D('M17 39v2a5 5 0 0 0 10 0v-2ZM37 39v2a5 5 0 0 0 10 0v-2Z');
+  const k = S * .74 / 56, canBlur = typeof document.createElement('canvas').getContext('2d').filter === 'string';
+  const layer = (draw, blur) => {
+    const c = document.createElement('canvas'); c.width = c.height = S; const g = c.getContext('2d'); g.fillStyle = '#000'; g.fillRect(0, 0, S, S);
+    const src = document.createElement('canvas'); src.width = src.height = S; const sg = src.getContext('2d');
+    sg.translate(S / 2 - 32 * k, S / 2 - 33 * k); sg.scale(k, k); sg.fillStyle = '#fff'; draw(sg);
+    if (canBlur) { g.filter = `blur(${blur}px)`; g.drawImage(src, 0, 0); g.filter = 'none'; }
+    else { const s = Math.max(4, Math.round(S / Math.max(2, blur * 1.6))), t = document.createElement('canvas'); t.width = t.height = s; t.getContext('2d').drawImage(src, 0, 0, s, s); g.imageSmoothingQuality = 'high'; g.drawImage(t, 0, 0, S, S); }
+    return g.getImageData(0, 0, S, S).data;
+  };
+  const body = g => { g.fill(BODY, 'evenodd'); g.fill(LIDS); };
+  const eyes = g => { for (const x of [22, 42]) { g.beginPath(); g.ellipse(x, 43.6, 3.2 * 1.15, 1.9 * 1.5, 0, 0, Math.PI * 2); g.fill(); } };
+  const R = layer(body, S * .075), G = layer(body, S * .016), B = layer(eyes, S * .026);
+  const out = document.createElement('canvas'); out.width = out.height = S; const og = out.getContext('2d'), od = og.createImageData(S, S);
+  for (let i = 0; i < S * S; i++) { od.data[4 * i] = R[4 * i]; od.data[4 * i + 1] = G[4 * i]; od.data[4 * i + 2] = B[4 * i]; od.data[4 * i + 3] = 255; }
+  og.putImageData(od, 0, 0); return out;
 }
 
+/* default camera direction -> where to hang the nebula in the default view */
+const DEF_VIEW = (() => {
+  const dv = new THREE.Vector3().setFromSphericalCoords(1, Math.PI / 2 - 50 * Math.PI / 180, .42).negate();
+  const up = new THREE.Vector3(0, 1, 0).addScaledVector(dv, -dv.y).normalize(), right = new THREE.Vector3().crossVectors(dv, up).normalize();
+  return { dv, up, right };
+})();
+const tanD = d => Math.tan(d * Math.PI / 180);
+
+function makeSky() {
+  const N = isDesktop() ? 2048 : 1024, maskCanvas = hoodMaskCanvas(512);
+  const mask = new THREE.CanvasTexture(maskCanvas); mask.colorSpace = THREE.NoColorSpace; mask.minFilter = mask.magFilter = THREE.LinearFilter; mask.generateMipmaps = false;
+  // logo nebula basis: centre direction slightly above the default line of sight, hood upright on screen
+  const C = DEF_VIEW.dv.clone().addScaledVector(DEF_VIEW.up, tanD(LOGO.up)).addScaledVector(DEF_VIEW.right, tanD(LOGO.right)).normalize();
+  let U = new THREE.Vector3(0, 1, 0).addScaledVector(C, -C.y).normalize(), Rr = new THREE.Vector3().crossVectors(C, U).normalize();
+  { const ro = LOGO.roll * Math.PI / 180, c = Math.cos(ro), s = Math.sin(ro), R2 = Rr.clone().multiplyScalar(c).addScaledVector(U, s), U2 = U.clone().multiplyScalar(c).addScaledVector(Rr, -s); Rr = R2; U = U2; }   // level the eyes on the default view
+  const t0 = performance.now();
+  const rt = new THREE.WebGLCubeRenderTarget(N, { type: THREE.UnsignedByteType, format: THREE.RGBAFormat, colorSpace: THREE.SRGBColorSpace, generateMipmaps: false, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter });
+  const mat = new THREE.ShaderMaterial({ side: THREE.BackSide, depthWrite: false, depthTest: false,
+    uniforms: { uMask: { value: mask }, uC: { value: C }, uR: { value: Rr }, uU: { value: U }, uHalf: { value: tanD(LOGO.half) }, uGain: { value: LOGO.gain } },
+    vertexShader: 'varying vec3 vDir; void main(){ vDir=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }', fragmentShader: NEBULA_FRAG });
+  const bakeScene = new THREE.Scene(), dome = new THREE.Mesh(new THREE.SphereGeometry(5, 48, 32), mat); dome.frustumCulled = false; bakeScene.add(dome);
+  const cc = new THREE.CubeCamera(.1, 20, rt); cc.update(renderer, bakeScene);
+  renderer.setRenderTarget(null);
+  mat.dispose(); dome.geometry.dispose();
+  const bakeMs = performance.now() - t0;
+  // crisp stars as camera-following points: sharp at any zoom, hidden behind the model by the depth test
+  const r = rng(2025), COUNT = isDesktop() ? 11000 : 5200, pos = new Float32Array(COUNT * 3), col = new Float32Array(COUNT * 3), size = new Float32Array(COUNT);
+  for (let i = 0; i < COUNT; i++) {
+    const z = r() * 2 - 1, a = r() * Math.PI * 2, s = Math.sqrt(1 - z * z), b = Math.pow(r(), 4.5), tint = r();
+    pos.set([s * Math.cos(a) * 120, z * 120, s * Math.sin(a) * 120], i * 3);
+    const base = tint < .16 ? [.55, .88, 1] : tint < .24 ? [1, .6, .95] : tint < .27 ? [1, .74, .42] : [.88, .93, 1], k = .62 + .38 * b;
+    col.set([base[0] * k, base[1] * k, base[2] * k], i * 3); size[i] = 1.25 + 3.9 * b;
+  }
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('aCol', new THREE.BufferAttribute(col, 3)); geo.setAttribute('size', new THREE.BufferAttribute(size, 1));
+  const smat = new THREE.ShaderMaterial({ uniforms: { uPx: { value: 1 } }, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, vertexShader: STAR_VERT, fragmentShader: STAR_FRAG });
+  const stars = new THREE.Points(geo, smat); stars.frustumCulled = false; stars.renderOrder = -5;
+  return { cube: rt.texture, rt, size: N, stars, mask, maskCanvas, logo: { center: C, up: U, right: Rr, half: LOGO.half }, bakeMs, count: COUNT, animated: false, setPixelRatio: v => { smat.uniforms.uPx.value = v; } };
+}
+
+const LOGO = isDesktop() ? { up: 14, right: 2.5, half: 17, gain: .85, roll: 1.6 } : { up: 8, right: 0, half: 10, gain: .85, roll: 1.6 };
+
 const sky = makeSky(); scene.background = sky.cube; scene.add(sky.stars); sky.setPixelRatio(renderer.getPixelRatio());
+
 
 /* ground blob shadow */
 const ground = (() => {
@@ -182,7 +236,7 @@ function LIST(items, sel) {
 const BAR = p => { tg.fillRect(3, 50, 118, 1); tg.fillRect(3, 56, 118, 1); tg.fillRect(3, 50, 1, 7); tg.fillRect(120, 50, 1, 7); tg.fillRect(5, 52, Math.round(114 * p), 3); };
 
 /* demo data: every value is a placeholder */
-const WIFI = ['HomeNet-demo', 'CafeGuest-demo', 'PhoneSpot-demo', 'Office-demo'];
+const WIFI = ['HomeNet', 'CafeGuest', 'PhoneSpot', 'Office'];
 const ZAPS = [21, 100, 1000], NETS = ['Mainnet', 'Testnet', 'Signet'], KINDS = ['Lightning', 'On-chain', 'Monero'];
 const PAIRS = [['BTC', 'USDT'], ['BTC', 'USDC'], ['BTC', 'ETH'], ['BTC', 'XMR'], ['USDT', 'BTC'], ['USDC', 'BTC'], ['ETH', 'BTC'], ['XMR', 'BTC']];
 const POLICIES = ['2-of-3', '3-of-5'], DICE = ['3 5 1 6 2 4', '2 2 6 1 5 3', '6 4 3 3 1 5'];
@@ -207,127 +261,126 @@ const UI = {
   menu: { sec: 'balance', label: 'Main menu', say: () => MENU[dev.menu][0], keys: { ...cyc('menu', MENU.length), ok: () => go(MENU[dev.menu][1]), back: 'home' }, draw() { H('Menu'); LIST(MENU.map(m => m[0]), dev.menu); } },
 
   pay: { sec: 'pay', label: 'Pay: choose type', say: () => KINDS[dev.payKind], keys: { ...cyc('payKind', 3), ok: 'pay.review', back: 'menu' },
-    draw() { H('Pay'); qrPattern(6, 17, 21, 2); F(8); T('Type (UP/DOWN):', 52, 24); F(8, true); ['Lightning', 'On-chain', 'Monero (XMR)'].forEach((k, i) => T((dev.payKind === i ? '> ' : '  ') + k, 52, 34 + i * 9)); F(7); T('OK = demo scan', 52, 60); } },
+    draw() { H('Pay'); qrPattern(6, 17, 21, 2); F(8); T('Type (UP/DOWN):', 52, 24); F(8, true); ['Lightning', 'On-chain', 'Monero (XMR)'].forEach((k, i) => T((dev.payKind === i ? '> ' : '  ') + k, 52, 34 + i * 9)); F(7); T('OK = scan', 52, 60); } },
   'pay.review': { sec: 'pay', label: 'Pay: review', say: () => `${KINDS[dev.payKind]} ${payAmt()}`, keys: { up: () => { if (dev.payKind === 0) dev.payFrom = wrap(dev.payFrom, 4, -1); }, down: () => { if (dev.payKind === 0) dev.payFrom = wrap(dev.payFrom, 4, 1); }, ok: 'pay.confirm', back: 'pay' },
-    draw() { H('Review'); LN(0, KINDS[dev.payKind] + ' (demo)', false, 8); LN(1, payAmt(), true, 12); if (dev.payKind === 0) LN(2, 'From: ' + PAYSRC[dev.payFrom], false, 8); else if (dev.payKind === 1) LN(2, 'Fee ~2 sat/vB (demo)', false, 8); else LN(2, 'Simulated only', false, 8); FOOT(dev.payKind === 0 ? 'UP/DOWN source  OK next' : 'OK next  BACK scan'); } },
+    draw() { H('Review'); LN(0, KINDS[dev.payKind], false, 8); LN(1, payAmt(), true, 12); if (dev.payKind === 0) LN(2, 'From: ' + PAYSRC[dev.payFrom], false, 8); else if (dev.payKind === 1) LN(2, 'Fee ~2 sat/vB', false, 8); else LN(2, 'Fee ~0.00002 XMR', false, 8); FOOT(dev.payKind === 0 ? 'UP/DOWN source  OK next' : 'OK next  BACK scan'); } },
   'pay.confirm': { sec: 'pay', label: 'Pay: confirm', say: () => `Confirm ${payAmt()}? OK confirms, BACK cancels`, keys: { ok: 'pay.sending', back: 'pay.review' },
-    draw() { H('Confirm'); LN(0, 'Pay ' + payAmt() + '?', true, 10); LN(1, 'Simulation only', false, 8); LN(2, 'Nothing is sent', false, 8); FOOT('OK = confirm  BACK = cancel'); } },
-  'pay.sending': { sec: 'pay', label: 'Pay: sending', say: () => 'Simulated sending. BACK cancels', auto: { ms: 1400, to: 'pay.done' }, keys: { back: 'menu' },
-    draw() { H('Sending...'); LN(0, 'Simulated payment', false, 8); LN(1, 'No network used', false, 8); BAR(.55); } },
-  'pay.done': { sec: 'pay', label: 'Pay: done', say: () => 'Demo payment finished. Nothing was sent', keys: { ok: 'home', back: 'menu' },
-    draw() { H('Done'); LN(0, 'Paid (demo)', true, 10); LN(1, 'Nothing was sent', false, 8); LN(2, dev.payKind === 0 ? 'Status via Nostr (sim)' : dev.payKind === 1 ? 'Not broadcast (sim)' : 'Not sent (sim)', false, 8); FOOT('OK home  BACK menu'); } },
+    draw() { H('Confirm'); LN(0, 'Pay ' + payAmt() + '?', true, 10); LN(1, 'To: Coffee shop', false, 8); LN(2, dev.payKind === 0 ? 'Fee: ~1 sat' : 'Fee: network rate', false, 8); FOOT('OK = confirm  BACK = cancel'); } },
+  'pay.sending': { sec: 'pay', label: 'Pay: sending', say: () => 'Sending. BACK cancels', auto: { ms: 1400, to: 'pay.done' }, keys: { back: 'menu' },
+    draw() { H('Sending...'); LN(0, 'Paying ' + payAmt(), false, 8); LN(1, 'Waiting for Nostr...', false, 8); BAR(.55); } },
+  'pay.done': { sec: 'pay', label: 'Pay: done', say: () => 'Payment complete', keys: { ok: 'home', back: 'menu' },
+    draw() { H('Done'); LN(0, 'Paid', true, 10); LN(1, payAmt(), false, 8); LN(2, dev.payKind === 0 ? 'Confirmed via Nostr' : dev.payKind === 1 ? 'Broadcast to peers' : 'Sent via Monero', false, 8); FOOT('OK home  BACK menu'); } },
 
-  tor: { sec: 'tor', label: 'Tor', say: () => `Tor demo switch ${dev.tor ? 'on' : 'off'}`, keys: { up: () => { dev.tor = 1 - dev.tor; }, down: () => { dev.tor = 1 - dev.tor; }, ok: () => { dev.tor = 1 - dev.tor; }, back: 'menu' },
-    draw() { H('Tor'); LN(0, 'Tor support', true, 10); LN(1, 'Demo switch: ' + (dev.tor ? 'ON' : 'OFF'), false, 9); LN(2, 'No traffic is routed', false, 8); FOOT('OK = toggle (demo)'); } },
+  tor: { sec: 'tor', label: 'Tor', say: () => `Tor ${dev.tor ? 'on' : 'off'}`, keys: { up: () => { dev.tor = 1 - dev.tor; }, down: () => { dev.tor = 1 - dev.tor; }, ok: () => { dev.tor = 1 - dev.tor; }, back: 'menu' },
+    draw() { H('Tor'); LN(0, 'Tor support', true, 10); LN(1, 'Status: ' + (dev.tor ? 'ON' : 'OFF'), false, 9); LN(2, 'Private connections', false, 8); FOOT('OK = toggle'); } },
   multisig: { sec: 'multisig', label: 'Multisig', say: () => 'Policy ' + POLICIES[dev.policy], keys: { ...cyc('policy', 2), ok: 'multisig.sign', back: 'menu' },
-    draw() { H('Multisig'); LN(0, 'Policy (UP/DOWN):', false, 8); LN(1, '> ' + POLICIES[dev.policy] + ' (demo)', true, 11); LN(2, 'No keys in this demo', false, 8); FOOT('OK = sign demo spend'); } },
-  'multisig.sign': { sec: 'multisig', label: 'Multisig: sign?', say: () => 'Co-sign a demo spend? OK signs in the demo', keys: { ok: 'multisig.done', back: 'multisig' },
-    draw() { H('Sign?'); LN(0, 'Co-sign demo spend', true, 9); LN(1, 'Simulation only', false, 8); LN(2, 'Nothing is signed', false, 8); FOOT('OK = sign  BACK = cancel'); } },
-  'multisig.done': { sec: 'multisig', label: 'Multisig: done (demo)', say: () => 'Demo co-signature. No key was used', keys: { ok: 'home', back: 'multisig' },
-    draw() { H('Signed (demo)'); LN(0, 'Co-signed 1 of ' + POLICIES[dev.policy][0], true, 9); LN(1, 'No key was used', false, 8); LN(2, 'Nothing was sent', false, 8); FOOT('OK home  BACK policy'); } },
-  psbt: { sec: 'psbt', label: 'PSBT', say: () => 'PSBT workflow demo. Signer is an external air-gapped device', keys: { ok: 'psbt.review', back: 'menu' },
-    draw() { H('PSBT'); LN(0, 'Signer is external', true, 9); LN(1, '(air-gapped device)', false, 8); LN(2, 'Card is not air-gapped', false, 8); FOOT('OK = demo PSBT'); } },
-  'psbt.review': { sec: 'psbt', label: 'PSBT: review', say: () => 'Review a demo PSBT signed by the external wallet', keys: { ok: 'psbt.confirm', back: 'psbt' },
-    draw() { H('Review PSBT'); LN(0, 'Spend 25,000 sats', true, 9); LN(1, 'Signed on external', false, 8); LN(2, 'wallet (demo)', false, 8); FOOT('OK next  BACK = back'); } },
-  'psbt.confirm': { sec: 'psbt', label: 'PSBT: confirm', say: () => 'Broadcast the demo transaction? Nothing is sent', keys: { ok: 'psbt.done', back: 'psbt.review' },
-    draw() { H('Broadcast?'); LN(0, 'To your node (demo)', true, 9); LN(1, 'Simulation only', false, 8); LN(2, 'Nothing is sent', false, 8); FOOT('OK = confirm  BACK = cancel'); } },
-  'psbt.done': { sec: 'psbt', label: 'PSBT: done (demo)', say: () => 'Demo only. Nothing was broadcast', keys: { ok: 'home', back: 'psbt' },
-    draw() { H('Done (demo)'); LN(0, 'Nothing broadcast', true, 9); LN(1, 'No node contacted', false, 8); FOOT('OK home  BACK = PSBT'); } },
+    draw() { H('Multisig'); LN(0, 'Policy (UP/DOWN):', false, 8); LN(1, '> ' + POLICIES[dev.policy], true, 11); LN(2, 'Co-sign with your keys', false, 8); FOOT('OK = sign'); } },
+  'multisig.sign': { sec: 'multisig', label: 'Multisig: sign?', say: () => 'Co-sign this spend? OK signs', keys: { ok: 'multisig.done', back: 'multisig' },
+    draw() { H('Sign?'); LN(0, 'Co-sign this spend', true, 9); LN(1, '25,000 sats', false, 8); LN(2, 'Policy ' + POLICIES[dev.policy], false, 8); FOOT('OK = sign  BACK = cancel'); } },
+  'multisig.done': { sec: 'multisig', label: 'Multisig: signed', say: () => 'Co-signed', keys: { ok: 'home', back: 'multisig' },
+    draw() { H('Signed'); LN(0, 'Signature 1 of ' + POLICIES[dev.policy][0], true, 9); LN(1, 'Waiting for the others', false, 8); FOOT('OK home  BACK policy'); } },
+  psbt: { sec: 'psbt', label: 'PSBT', say: () => 'PSBT sync with an external air-gapped wallet', keys: { ok: 'psbt.review', back: 'menu' },
+    draw() { H('PSBT'); LN(0, 'Create PSBT', true, 9); LN(1, 'Sign on air-gapped wallet', false, 8); LN(2, 'Broadcast with card', false, 8); FOOT('OK = start'); } },
+  'psbt.review': { sec: 'psbt', label: 'PSBT: review', say: () => 'Review the PSBT signed by your wallet', keys: { ok: 'psbt.confirm', back: 'psbt' },
+    draw() { H('Review PSBT'); LN(0, 'Spend 25,000 sats', true, 9); LN(1, 'Signed on your', false, 8); LN(2, 'air-gapped wallet', false, 8); FOOT('OK next  BACK = back'); } },
+  'psbt.confirm': { sec: 'psbt', label: 'PSBT: confirm', say: () => 'Broadcast the transaction?', keys: { ok: 'psbt.done', back: 'psbt.review' },
+    draw() { H('Broadcast?'); LN(0, 'Send via Wesatoshis', true, 9); LN(1, '25,000 sats', false, 8); LN(2, 'Fee ~3 sat/vB', false, 8); FOOT('OK = confirm  BACK = cancel'); } },
+  'psbt.done': { sec: 'psbt', label: 'PSBT: done', say: () => 'Transaction broadcast', keys: { ok: 'home', back: 'psbt' },
+    draw() { H('Done'); LN(0, 'Broadcast', true, 9); LN(1, 'Sent to the network', false, 8); FOOT('OK home  BACK = PSBT'); } },
   swap: { sec: 'swap', label: 'Swap (Trocador)', say: () => pair(), keys: { ...cyc('swap', 8), ok: 'swap.review', back: 'menu' }, draw() { H('Swap'); LIST(PAIRS.map(p => p[0] + ' > ' + p[1]), dev.swap); } },
-  'swap.review': { sec: 'swap', label: 'Swap: review', say: () => pair() + ' via Trocador, a third-party service', keys: { ok: 'swap.confirm', back: 'swap' },
-    draw() { H('Swap review'); LN(0, pair(), true, 10); LN(1, 'via Trocador (3rd party)', false, 8); LN(2, 'Rate and fees: demo', false, 8); FOOT('OK next  BACK = list'); } },
-  'swap.confirm': { sec: 'swap', label: 'Swap: confirm', say: () => 'Confirm ' + pair() + '? Nothing is exchanged', keys: { ok: 'swap.sending', back: 'swap.review' },
-    draw() { H('Confirm swap'); LN(0, 'Swap ' + pair() + '?', true, 9); LN(1, 'Simulation only', false, 8); LN(2, 'Nothing is exchanged', false, 8); FOOT('OK = confirm  BACK = cancel'); } },
-  'swap.sending': { sec: 'swap', label: 'Swap: working', say: () => 'Simulated swap. BACK cancels', auto: { ms: 1400, to: 'swap.done' }, keys: { back: 'menu' },
-    draw() { H('Swapping...'); LN(0, 'Simulated swap', false, 8); LN(1, 'No service contacted', false, 8); BAR(.55); } },
-  'swap.done': { sec: 'swap', label: 'Swap: done (demo)', say: () => 'Demo swap finished. Nothing was exchanged', keys: { ok: 'home', back: 'menu' },
-    draw() { H('Done (demo)'); LN(0, pair() + ' (sim)', true, 10); LN(1, 'Nothing exchanged', false, 8); LN(2, 'Third-party service', false, 8); FOOT('OK home  BACK menu'); } },
-  dice: { sec: 'dice', label: 'Dice rolls', say: () => 'Demo roll ' + DICE[dev.dice], keys: { up: () => { dev.dice = wrap(dev.dice, 3, -1); }, down: () => { dev.dice = wrap(dev.dice, 3, 1); }, ok: () => { dev.dice = wrap(dev.dice, 3, 1); }, back: 'menu' },
-    draw() { H('Dice rolls'); LN(0, 'Demo rolls (not random)', false, 8); LN(1, DICE[dev.dice], true, 12); LN(2, 'Not real entropy', false, 8); FOOT('OK = next demo roll'); } },
+  'swap.review': { sec: 'swap', label: 'Swap: review', say: () => pair() + ' via Trocador', keys: { ok: 'swap.confirm', back: 'swap' },
+    draw() { H('Swap review'); LN(0, pair(), true, 10); LN(1, 'via Trocador', false, 8); LN(2, 'Review rate & fees', false, 8); FOOT('OK next  BACK = list'); } },
+  'swap.confirm': { sec: 'swap', label: 'Swap: confirm', say: () => 'Confirm ' + pair() + '? OK confirms, BACK cancels', keys: { ok: 'swap.sending', back: 'swap.review' },
+    draw() { H('Confirm swap'); LN(0, 'Swap ' + pair() + '?', true, 9); LN(1, 'via Trocador', false, 8); LN(2, 'Check the amount', false, 8); FOOT('OK = confirm  BACK = cancel'); } },
+  'swap.sending': { sec: 'swap', label: 'Swap: working', say: () => 'Swapping. BACK cancels', auto: { ms: 1400, to: 'swap.done' }, keys: { back: 'menu' },
+    draw() { H('Swapping...'); LN(0, 'Swapping...', false, 8); LN(1, 'via Trocador', false, 8); BAR(.55); } },
+  'swap.done': { sec: 'swap', label: 'Swap: done', say: () => 'Swap complete', keys: { ok: 'home', back: 'menu' },
+    draw() { H('Done'); LN(0, pair(), true, 10); LN(1, 'Swap complete', false, 8); LN(2, 'via Trocador', false, 8); FOOT('OK home  BACK menu'); } },
+  dice: { sec: 'dice', label: 'Dice rolls', say: () => 'Roll ' + DICE[dev.dice], keys: { up: () => { dev.dice = wrap(dev.dice, 3, -1); }, down: () => { dev.dice = wrap(dev.dice, 3, 1); }, ok: () => { dev.dice = wrap(dev.dice, 3, 1); }, back: 'menu' },
+    draw() { H('Dice rolls'); LN(0, 'Your rolls', false, 8); LN(1, DICE[dev.dice], true, 12); FOOT('OK = next roll'); } },
   recv: { sec: 'recv', label: 'Receive: choose type', say: () => KINDS[dev.recvKind], keys: { ...cyc('recvKind', 2), ok: 'recv.show', back: 'menu' },
-    draw() { H('Receive'); LN(0, 'Type (UP/DOWN):', false, 8); F(9, true); T((dev.recvKind === 0 ? '> ' : '  ') + 'Lightning invoice', 3, 36); T((dev.recvKind === 1 ? '> ' : '  ') + 'Bitcoin address', 3, 47); FOOT('OK = create (demo)'); } },
-  'recv.show': { sec: 'recv', label: 'Receive: waiting', say: () => 'Demo ' + (dev.recvKind === 0 ? 'invoice' : 'address') + '. OK simulates an incoming payment', keys: { ok: 'recv.done', back: 'recv' },
-    draw() { H('Receive'); qrPattern(4, 16, 21, 2); F(8); T('DEMO only', 52, 26); T(dev.recvKind === 0 ? '1,000 sats' : 'placeholder', 52, 37); T('not a real ' + (dev.recvKind === 0 ? 'inv.' : 'addr.'), 52, 47); F(7); T('OK = simulate', 52, 60); } },
-  'recv.done': { sec: 'recv', label: 'Receive: done', say: () => 'Demo payment received. Nothing was paid', keys: { ok: 'home', back: 'menu' },
-    draw() { H('Received'); LN(0, 'Received (demo)', true, 10); LN(1, 'Nothing was paid', false, 8); LN(2, 'Simulated only', false, 8); FOOT('OK home  BACK menu'); } },
+    draw() { H('Receive'); LN(0, 'Type (UP/DOWN):', false, 8); F(9, true); T((dev.recvKind === 0 ? '> ' : '  ') + 'Lightning invoice', 3, 36); T((dev.recvKind === 1 ? '> ' : '  ') + 'Bitcoin address', 3, 47); FOOT('OK = create'); } },
+  'recv.show': { sec: 'recv', label: 'Receive: waiting', say: () => (dev.recvKind === 0 ? 'Invoice' : 'Address') + ' ready. OK marks it received', keys: { ok: 'recv.done', back: 'recv' },
+    draw() { H('Receive'); qrPattern(4, 16, 21, 2); F(8); T('Scan to pay', 52, 26); T(dev.recvKind === 0 ? '1,000 sats' : 'Bitcoin address', 52, 37); T('Waiting...', 52, 47); F(7); T('OK = received', 52, 60); } },
+  'recv.done': { sec: 'recv', label: 'Receive: done', say: () => 'Payment received', keys: { ok: 'home', back: 'menu' },
+    draw() { H('Received'); LN(0, 'Received', true, 10); LN(1, dev.recvKind === 0 ? '1,000 sats' : 'On-chain payment', false, 8); FOOT('OK home  BACK menu'); } },
 
-  scan: { sec: 'scan', label: 'Scan QR', say: () => 'Scanner demo. OK to pick a simulated code', keys: { ok: 'scan.pick', back: 'menu' },
-    draw() { H('Scan QR'); qrPattern(6, 17, 21, 2); F(8); ['Invoice · Wi-Fi', 'or your node', '(btcnode:...)'].forEach((s, i) => T(s, 56, 28 + i * 10)); F(7); T('OK = demo scan', 56, 60); } },
-  'scan.pick': { sec: 'scan', label: 'Scan: pick a demo code', say: () => SCAN[dev.scan][0], keys: { ...cyc('scan', 3), ok: () => go(SCAN[dev.scan][1]), back: 'scan' }, draw() { H('Demo codes'); LIST(SCAN.map(s => s[0]), dev.scan); } },
+  scan: { sec: 'scan', label: 'Scan QR', say: () => 'Scanner ready. OK to pick a code', keys: { ok: 'scan.pick', back: 'menu' },
+    draw() { H('Scan QR'); qrPattern(6, 17, 21, 2); F(8); ['Invoice · Wi-Fi', 'or your node', '(btcnode:...)'].forEach((s, i) => T(s, 56, 28 + i * 10)); F(7); T('OK = scan', 56, 60); } },
+  'scan.pick': { sec: 'scan', label: 'Scan: pick a code', say: () => SCAN[dev.scan][0], keys: { ...cyc('scan', 3), ok: () => go(SCAN[dev.scan][1]), back: 'scan' }, draw() { H('Scanned'); LIST(SCAN.map(s => s[0]), dev.scan); } },
 
   wifi: { sec: 'wifi', label: 'Wi-Fi', say: () => (dev.wifi === 0 ? 'Add Wi-Fi from a QR code' : WIFI[dev.wifi - 1]), keys: { up: () => { dev.wifi = wrap(dev.wifi, WIFI.length + 1, -1); }, down: () => { dev.wifi = wrap(dev.wifi, WIFI.length + 1, 1); }, ok: () => { if (dev.wifi === 0) go('wifi.qr'); else { dev.target = WIFI[dev.wifi - 1]; go('wifi.connecting'); } }, back: 'menu' },
     draw() { H('Wi-Fi 2.4GHz'); LIST(['Scan Wi-Fi QR', ...WIFI.map(n => n + (dev.connected === n ? ' *' : ''))], dev.wifi); } },
-  'wifi.qr': { sec: 'wifi', label: 'Wi-Fi QR', say: () => 'Demo Wi-Fi QR. OK uses it', keys: { ok: () => { dev.target = 'QR-Net-demo'; go('wifi.connecting'); }, back: 'wifi' },
-    draw() { H('Wi-Fi QR'); qrPattern(6, 17, 21, 2); F(8); T('Demo code:', 56, 28); T('QR-Net-demo', 56, 38); T('no camera used', 56, 48); F(7); T('OK = use', 56, 60); } },
-  'wifi.connecting': { sec: 'wifi', label: 'Wi-Fi: connecting', say: () => 'Simulated connection to ' + dev.target + '. BACK cancels', auto: { ms: 1500, to: 'wifi.done' }, keys: { back: 'wifi' },
-    draw() { H('Connecting'); LN(0, dev.target, true, 9); LN(1, 'Simulated, no real', false, 8); LN(2, 'network is used', false, 8); BAR(.5); } },
-  'wifi.done': { sec: 'wifi', label: 'Wi-Fi: connected', say: () => 'Connected to ' + dev.target + ' in the demo. OK forgets it', enter() { dev.connected = dev.target; dev.saved = dev.saved.filter(n => n !== dev.target); dev.saved.push(dev.target); if (dev.saved.length > 2) dev.saved.shift(); },
+  'wifi.qr': { sec: 'wifi', label: 'Wi-Fi QR', say: () => 'Wi-Fi QR. OK joins', keys: { ok: () => { dev.target = 'QR-Net'; go('wifi.connecting'); }, back: 'wifi' },
+    draw() { H('Wi-Fi QR'); qrPattern(6, 17, 21, 2); F(8); T('Network:', 56, 28); T('QR-Net', 56, 38); T('2.4 GHz', 56, 48); F(7); T('OK = join', 56, 60); } },
+  'wifi.connecting': { sec: 'wifi', label: 'Wi-Fi: connecting', say: () => 'Connecting to ' + dev.target + '. BACK cancels', auto: { ms: 1500, to: 'wifi.done' }, keys: { back: 'wifi' },
+    draw() { H('Connecting'); LN(0, dev.target, true, 9); LN(1, 'Joining 2.4 GHz', false, 8); BAR(.5); } },
+  'wifi.done': { sec: 'wifi', label: 'Wi-Fi: connected', say: () => 'Connected to ' + dev.target + '. OK forgets it', enter() { dev.connected = dev.target; dev.saved = dev.saved.filter(n => n !== dev.target); dev.saved.push(dev.target); if (dev.saved.length > 2) dev.saved.shift(); },
     keys: { ok: () => { dev.saved = dev.saved.filter(n => n !== dev.connected); dev.connected = ''; go('wifi'); }, back: 'wifi' },
-    draw() { H('Connected'); LN(0, dev.target, true, 9); LN(1, 'Demo: not a real link', false, 8); LN(2, `Saved ${dev.saved.length}/2 (sim)`, false, 8); FOOT('OK = forget  BACK = list'); } },
+    draw() { H('Connected'); LN(0, dev.target, true, 9); LN(1, 'Online', false, 8); LN(2, `Saved ${dev.saved.length}/2`, false, 8); FOOT('OK = forget  BACK = list'); } },
 
   nostr: { sec: 'nwc', label: 'Nostr', say: () => NOSTR[dev.nostr][0], keys: { ...cyc('nostr', 2), ok: () => go(NOSTR[dev.nostr][1]), back: 'menu' }, draw() { H('Nostr'); LIST(NOSTR.map(n => n[0]), dev.nostr); } },
-  nwc: { sec: 'nwc', label: 'Nostr Wallet Connect', say: () => 'Add a Nostr Wallet Connect relay? OK confirms in the demo', keys: { ok: 'nwc.done', back: 'nostr' },
+  nwc: { sec: 'nwc', label: 'Nostr Wallet Connect', say: () => 'Add a Nostr Wallet Connect relay? OK confirms', keys: { ok: 'nwc.done', back: 'nostr' },
     draw() { F(10, true); T('Nostr Connect', 2, 10); F(8); ['Would you like to add', 'wss://relay.getalby.com', '/v1 (NWC)?'].forEach((s, i) => T(s, 2, 25 + i * 10)); F(9, true); T('Press OK to confirm', 2, 61); } },
-  'nwc.done': { sec: 'nwc', label: 'NWC: paired (demo)', say: () => 'Paired in the demo. No relay was contacted', keys: { ok: 'home', back: 'nostr' },
-    draw() { H('Paired (demo)'); LN(0, 'No relay contacted', false, 8); LN(1, 'Nothing was linked', false, 8); FOOT('OK home  BACK Nostr'); } },
+  'nwc.done': { sec: 'nwc', label: 'NWC: paired', say: () => 'Wallet connected', keys: { ok: 'home', back: 'nostr' },
+    draw() { H('Connected'); LN(0, 'Nostr Wallet Connect', true, 9); LN(1, 'Ready to pay invoices', false, 8); FOOT('OK home  BACK Nostr'); } },
   zap: { sec: 'zap', label: 'Zap a friend', say: () => `Zap ${ZAPS[dev.zap]} sats`, keys: { ...cyc('zap', 3), ok: 'zap.done', back: 'nostr' },
-    draw() { H('Zap a friend'); LN(0, 'npub1...demo', false, 8); LN(1, '> ' + ZAPS[dev.zap] + ' sats', true, 11); LN(2, 'UP/DOWN amount', false, 8); FOOT('OK = zap (demo)  BACK'); } },
-  'zap.done': { sec: 'zap', label: 'Zap: done (demo)', say: () => 'Demo zap. Nothing was sent', keys: { ok: 'home', back: 'nostr' },
-    draw() { H('Zap (demo)'); LN(0, 'Zap simulated', true, 10); LN(1, 'Nothing was sent', false, 8); FOOT('OK home  BACK Nostr'); } },
+    draw() { H('Zap a friend'); LN(0, 'To: npub1... friend', false, 8); LN(1, '> ' + ZAPS[dev.zap] + ' sats', true, 11); LN(2, 'UP/DOWN amount', false, 8); FOOT('OK = zap  BACK'); } },
+  'zap.done': { sec: 'zap', label: 'Zap: sent', say: () => `Zapped ${ZAPS[dev.zap]} sats`, keys: { ok: 'home', back: 'nostr' },
+    draw() { H('Zapped'); LN(0, ZAPS[dev.zap] + ' sats sent', true, 10); LN(1, 'Via Lightning', false, 8); FOOT('OK home  BACK Nostr'); } },
 
-  node: { sec: 'node', label: 'Connect node', say: () => 'Home node demo. OK links the demo', keys: { ok: 'node.done', back: 'menu' },
-    draw() { H('Connect node'); F(9); ['btcnode:192.168.1.10', ':8333', 'SPV · no Electrum'].forEach((s, i) => T(s, 2, 27 + i * 13)); FOOT('OK = link (demo)'); } },
-  'node.done': { sec: 'node', label: 'Node: linked (demo)', say: () => 'Demo only. No node was contacted', keys: { ok: 'home', back: 'menu' },
-    draw() { H('Node (demo)'); LN(0, 'Linked in demo only', false, 8); LN(1, 'No node contacted', false, 8); LN(2, 'SPV, not full node', false, 8); FOOT('OK home  BACK menu'); } },
+  node: { sec: 'node', label: 'Connect node', say: () => 'Home node. OK links it', keys: { ok: 'node.done', back: 'menu' },
+    draw() { H('Connect node'); F(9); ['btcnode:192.168.1.10', ':8333', 'SPV · no Electrum'].forEach((s, i) => T(s, 2, 27 + i * 13)); FOOT('OK = link'); } },
+  'node.done': { sec: 'node', label: 'Node: linked', say: () => 'Home node linked', keys: { ok: 'home', back: 'menu' },
+    draw() { H('Node linked'); LN(0, 'Your own node', true, 9); LN(1, 'Direct P2P', false, 8); LN(2, 'SPV header checks', false, 8); FOOT('OK home  BACK menu'); } },
   block: { sec: 'block', label: 'Block tracker', say: () => `Block ${BLOCKS[dev.blk][0]}`, keys: { ...cyc('blk', 3), back: 'menu' },
     draw() { const b = BLOCKS[dev.blk]; H('New block'); LN(0, '#' + b[0], true, 11); LN(1, 'Miner: ' + b[1], false, 8); LN(2, 'Txs: ' + b[2], false, 8); FOOT('UP/DOWN browse  BACK'); } },
-  mempool: { sec: 'mempool', label: 'Mempool & RBF', say: () => 'Unconfirmed transaction demo', keys: { back: 'menu' },
-    draw() { H('Mempool'); LN(0, 'Unconfirmed tx: 1', false, 9); LN(1, 'RBF replacement seen', false, 8); LN(2, 'Demo data', false, 8); FOOT('BACK = menu'); } },
-  price: { sec: 'price', label: 'BTC price & fees', say: () => `${PRICES[dev.price][0]} placeholder price`, keys: { ...cyc('price', 2), back: 'menu' },
-    draw() { H('BTC price'); LN(0, PRICES[dev.price][0] + ' ' + PRICES[dev.price][1], true, 11); LN(1, '(placeholder value)', false, 8); LN(2, 'Fee ~4 sat/vB (demo)', false, 8); FOOT('UP/DOWN currency  BACK'); } },
-  '2fa': { sec: '2fa', label: 'AuthCodes 2FA', say: () => 'Demo code ' + CODES[dev.code], keys: { up: () => { dev.code = wrap(dev.code, 3, -1); }, down: () => { dev.code = wrap(dev.code, 3, 1); }, ok: () => { dev.code = wrap(dev.code, 3, 1); }, back: 'menu' },
-    draw() { H('AuthCodes 2FA'); LN(1, CODES[dev.code], true, 16); LN(2, 'demo code', false, 8); FOOT('OK = next demo code'); } },
-  docproof: { sec: 'docproof', label: 'DOCPROOF', say: () => 'Hash demo', keys: { back: 'menu' },
-    draw() { H('DOCPROOF'); LN(0, 'SHA-256 hash (demo):', false, 8); LN(1, 'a3f9 51c2 07be d4', true, 9); LN(2, 'Nothing is embedded', false, 8); FOOT('BACK = menu'); } },
+  mempool: { sec: 'mempool', label: 'Mempool & RBF', say: () => 'Unconfirmed transactions', keys: { back: 'menu' },
+    draw() { H('Mempool'); LN(0, 'Unconfirmed tx: 1', false, 9); LN(1, 'RBF replacement seen', false, 8); LN(2, 'Watching the mempool', false, 8); FOOT('BACK = menu'); } },
+  price: { sec: 'price', label: 'BTC price & fees', say: () => `${PRICES[dev.price][0]} price`, keys: { ...cyc('price', 2), back: 'menu' },
+    draw() { H('BTC price'); LN(0, PRICES[dev.price][0] + ' ' + PRICES[dev.price][1], true, 11); LN(1, 'per bitcoin', false, 8); LN(2, 'Fee ~4 sat/vB', false, 8); FOOT('UP/DOWN currency  BACK'); } },
+  '2fa': { sec: '2fa', label: 'AuthCodes 2FA', say: () => 'Code ' + CODES[dev.code], keys: { up: () => { dev.code = wrap(dev.code, 3, -1); }, down: () => { dev.code = wrap(dev.code, 3, 1); }, ok: () => { dev.code = wrap(dev.code, 3, 1); }, back: 'menu' },
+    draw() { H('AuthCodes 2FA'); LN(1, CODES[dev.code], true, 16); LN(2, 'AuthCodes', false, 8); FOOT('OK = next code'); } },
+  docproof: { sec: 'docproof', label: 'DOCPROOF', say: () => 'Proof of existence', keys: { back: 'menu' },
+    draw() { H('DOCPROOF'); LN(0, 'SHA-256 hash:', false, 8); LN(1, 'a3f9 51c2 07be d4', true, 9); LN(2, 'Proof of existence', false, 8); FOOT('BACK = menu'); } },
   net: { sec: 'net', label: 'Network', say: () => NETS[dev.net], keys: { ...cyc('net', 3), back: 'menu' },
     draw() { H('Network'); LIST(NETS.map((n, i) => n + (i === dev.net ? ' *' : '')), dev.net); } },
-  sd: { sec: 'sd', label: 'SD card', say: () => 'Header sync demo', keys: { back: 'menu' },
-    draw() { H('SD card'); LN(0, 'Verifying headers', false, 8); LN(1, '47% (demo)', true, 10); BAR(.47); } },
-  setup: { sec: 'setup', label: 'Wallet setup', say: () => 'Secure element demo. No keys are made', keys: { ok: 'pin', back: 'menu' },
-    draw() { H('Wallet setup'); LN(0, 'Secure element makes', false, 8); LN(1, 'the seed (demo only)', false, 8); LN(2, 'No keys in this demo', true, 8); FOOT('OK = PIN   BACK = menu'); } },
-  pin: { sec: 'pin', label: 'PIN', say: () => 'PIN protection information', keys: { back: 'menu' },
-    draw() { H('Enter PIN'); F(21, true); T('••••', 4, 42); F(8); T('PIN protection (info)', 4, 58); } },
-  about: { sec: 'balance', label: 'About', say: () => 'About the real card', keys: { back: 'menu' },
-    draw() { H('About'); LN(0, 'Wesatoshis Card', true, 9); LN(1, 'wesatoshis.com', false, 9); LN(2, 'This screen is a demo', false, 8); FOOT('BACK = menu'); } },
+  sd: { sec: 'sd', label: 'SD card', say: () => 'Header sync', keys: { back: 'menu' },
+    draw() { H('SD card'); LN(0, 'Verifying headers', false, 8); LN(1, '47%', true, 10); BAR(.47); } },
+  setup: { sec: 'setup', label: 'Wallet setup', say: () => 'Secure element generates your seed', keys: { ok: 'pin', back: 'menu' },
+    draw() { H('Wallet setup'); LN(0, 'Secure element', true, 9); LN(1, 'generates your seed', false, 8); FOOT('OK = PIN   BACK = menu'); } },
+  pin: { sec: 'pin', label: 'PIN', say: () => 'PIN protection', keys: { back: 'menu' },
+    draw() { H('Enter PIN'); F(21, true); T('••••', 4, 42); F(8); T('PIN + decoy mode', 4, 58); } },
+  about: { sec: 'balance', label: 'About', say: () => 'About', keys: { back: 'menu' },
+    draw() { H('About'); LN(0, 'Wesatoshis Card', true, 9); LN(1, 'wesatoshis.com', false, 9); LN(2, 'Open hardware', false, 8); FOOT('BACK = menu'); } },
 };
-/* the demo screens listed in the sidebar (jump targets); the first five keep their original order */
+/* the screens listed in the sidebar (jump targets); the first five keep their original order */
 const SCREENS = [
-  { id: 'balance', to: 'home', label: 'Balance', src: 'Official site: native Bitcoin + Lightning card with its own display', tip: 'On the real card the manufacturer says your keys stay on the device.' },
-  { id: 'nwc', to: 'nwc', label: 'Nostr Wallet Connect', src: 'Official tutorial: attach Nostr Wallet Connect to pay Lightning invoices', tip: 'Official tutorial: link NWC to pay Lightning invoices from the card.' },
-  { id: 'scan', to: 'scan', label: 'Scan QR', src: 'Official FAQ: dedicated scanner chip reads invoices, Wi-Fi and node QR codes', tip: 'The real card has a built-in scanner for invoices, Wi-Fi and node codes.' },
-  { id: 'node', to: 'node', label: 'Home node', src: 'Official FAQ: connects to your home Bitcoin node via a btcnode: QR code', tip: 'The card connects to a node you run; it verifies with SPV, which is not full-node validation.' },
-  { id: 'pin', to: 'pin', label: 'PIN', src: 'Official FAQ: the card can be secured with a PIN code', tip: 'PIN and decoy mode exist on the real card; the manufacturer’s descriptions of decoy mode differ.' },
-  { id: 'block', to: 'block', label: 'Block tracker', src: 'Official FAQ: tracks every new block in real time incl. miner and stats', tip: 'The real card tracks new blocks, including the miner.' },
-  { id: 'mempool', to: 'mempool', label: 'Mempool & RBF', src: 'Official FAQ: monitors unconfirmed mempool transactions and detects RBF', tip: 'The manufacturer says the card watches unconfirmed transactions and detects RBF.' },
-  { id: 'zap', to: 'zap', label: 'Zap a friend', src: 'Official FAQ: add friends by Nostr public key and zap them', tip: 'The real card keeps a friends list by Nostr public key so you can zap them.' },
-  { id: 'pay', to: 'pay', label: 'Pay', src: 'Official FAQ: pay a BOLT11 invoice from a home Lightning node or the wallet balance', tip: 'The manufacturer says a BOLT11 invoice can be paid from your wallet balance or a home Lightning node.' },
-  { id: 'wifi', to: 'wifi', label: 'Wi-Fi', src: 'Official FAQ: Wi-Fi QR codes, 2.4 GHz band, up to two saved networks', tip: 'The real card saves up to two Wi-Fi networks and uses the 2.4 GHz band.' },
-  { id: '2fa', to: '2fa', label: 'AuthCodes 2FA', src: 'Official FAQ: the card can serve as a 2FA device for AuthCodes', tip: 'The manufacturer says the card can act as an AuthCodes 2FA device.' },
-  { id: 'docproof', to: 'docproof', label: 'DOCPROOF', src: 'Official FAQ: DOCPROOF embeds a SHA-256 hash as proof of existence', tip: 'The real card can embed a SHA-256 proof of existence using DOCPROOF (manufacturer).' },
-  { id: 'net', to: 'net', label: 'Testnet & Signet', src: 'Official FAQ: Testnet and Signet are supported for testing', tip: 'The real card supports Testnet and Signet for testing.' },
-  { id: 'sd', to: 'sd', label: 'SD header sync', src: 'Official FAQ: SD card stores headers; an empty card re-downloads and verifies them (~1 hour)', tip: 'The SD card holds SPV headers and your encrypted wallet; firmware updates install offline.' },
-  { id: 'recv', to: 'recv', label: 'Receive', src: 'Official tutorial: generate a Bitcoin address on the card; FAQ: Lightning receive', tip: 'The official tutorials show generating a fresh Bitcoin address on the card.' },
-  { id: 'price', to: 'price', label: 'BTC price & fees', src: 'Official FAQ: fetches Bitcoin price and fee data without a central server (manufacturer claim)', tip: 'The manufacturer says price and fee data need no central server; it does not explain how.' },
-  { id: 'setup', to: 'setup', label: 'Wallet setup', src: 'Official FAQ: the secure element is used mainly to generate a new seed during setup', tip: 'The secure element is used mainly to generate your seed during setup (manufacturer).' },
-  { id: 'tor', to: 'tor', label: 'Tor', src: 'Producer information (newer than the public FAQ): Tor support', tip: 'Producer information: Tor support. The older public FAQ answer about Tor may differ.' },
-  { id: 'multisig', to: 'multisig', label: 'Multisig', src: 'Producer information (newer than the public FAQ): Bitcoin multisig', tip: 'Producer information: Bitcoin multisig. Signing details were not supplied, so this screen only illustrates it.' },
-  { id: 'psbt', to: 'psbt', label: 'PSBT', src: 'Producer information (newer than the public FAQ): PSBT workflow with an external air-gapped wallet', tip: 'Producer information: a PSBT workflow with an external air-gapped wallet. The card itself is not air-gapped.' },
-  { id: 'swap', to: 'swap', label: 'Swap (Trocador)', src: 'Producer information (newer than the public FAQ): USDT/USDC/ETH/BTC/XMR swaps via Trocador', tip: 'Producer information: USDT, USDC, ETH, BTC and XMR swaps via Trocador, a third-party service.' },
-  { id: 'dice', to: 'dice', label: 'Dice rolls', src: 'Producer information (newer than the public FAQ): dice rolls', tip: 'Producer information: dice rolls. The demo rolls are fixed values, not random entropy.' },
-  { id: 'arkade', to: 'pay.review', pre: () => { dev.payKind = 0; dev.payFrom = 3; }, label: 'Lightning via Arkade', src: 'Producer information: Lightning via Arkade; a June 2026 X post first described it as Developer Mode', tip: 'Producer information: Lightning via Arkade is available. A June 2026 post on the manufacturer’s X account first described it as Developer Mode.' },
-  { id: 'xmr', to: 'pay.review', pre: () => { dev.payKind = 2; }, label: 'Monero (XMR) payment', src: 'Producer information (newer than the public FAQ): XMR payments', tip: 'Producer information: XMR payments. Mechanics were not supplied, so this screen only illustrates it.' },
+  { id: 'balance', to: 'home', label: 'Balance' },
+  { id: 'nwc', to: 'nwc', label: 'Nostr Wallet Connect' },
+  { id: 'scan', to: 'scan', label: 'Scan QR' },
+  { id: 'node', to: 'node', label: 'Home node' },
+  { id: 'pin', to: 'pin', label: 'PIN' },
+  { id: 'block', to: 'block', label: 'Block tracker' },
+  { id: 'mempool', to: 'mempool', label: 'Mempool & RBF' },
+  { id: 'zap', to: 'zap', label: 'Zap a friend' },
+  { id: 'pay', to: 'pay', label: 'Pay' },
+  { id: 'wifi', to: 'wifi', label: 'Wi-Fi' },
+  { id: '2fa', to: '2fa', label: 'AuthCodes 2FA' },
+  { id: 'docproof', to: 'docproof', label: 'DOCPROOF' },
+  { id: 'net', to: 'net', label: 'Testnet & Signet' },
+  { id: 'sd', to: 'sd', label: 'SD header sync' },
+  { id: 'recv', to: 'recv', label: 'Receive' },
+  { id: 'price', to: 'price', label: 'BTC price & fees' },
+  { id: 'setup', to: 'setup', label: 'Wallet setup' },
+  { id: 'tor', to: 'tor', label: 'Tor' },
+  { id: 'multisig', to: 'multisig', label: 'Multisig' },
+  { id: 'psbt', to: 'psbt', label: 'PSBT' },
+  { id: 'swap', to: 'swap', label: 'Swap (Trocador)' },
+  { id: 'dice', to: 'dice', label: 'Dice rolls' },
+  { id: 'arkade', to: 'pay.review', pre: () => { dev.payKind = 0; dev.payFrom = 3; }, label: 'Lightning via Arkade' },
+  { id: 'xmr', to: 'pay.review', pre: () => { dev.payKind = 2; }, label: 'Monero (XMR) payment' },
 ];
-SCREENS.forEach(m => { m.sim = true; });   // every screen is a simulation
 const secIndex = () => {
   let id = UI[dev.cur].sec;
   if (dev.cur.startsWith('pay.')) { if (dev.payKind === 2) id = 'xmr'; else if (dev.payKind === 0 && dev.payFrom === 3) id = 'arkade'; }
@@ -338,7 +391,7 @@ function paint() {
   texts = []; const u = UI[dev.cur];
   tg.clearRect(0, 0, SCR.W, SCR.H); tg.fillStyle = '#fff'; tg.textBaseline = 'alphabetic'; tg.globalCompositeOperation = 'source-over'; tg.lineWidth = 1;
   u.draw();
-  tg.globalCompositeOperation = 'source-over'; tg.fillStyle = '#fff'; tg.fillRect(99, 1, 27, 11); tg.globalCompositeOperation = 'destination-out'; F(9, true); tg.fillText('SIM', 101, 10); tg.globalCompositeOperation = 'source-over';   // inverted SIM tag
+  tg.globalCompositeOperation = 'source-over'; tg.fillStyle = '#fff'; tg.fillRect(102, 1, 24, 10); tg.globalCompositeOperation = 'destination-out'; F(7, true); tg.fillText('DEMO', 104, 9); tg.globalCompositeOperation = 'source-over';   // small inverted DEMO tag
   const d = tg.getImageData(0, 0, SCR.W, SCR.H).data; const g = scrCanvas.getContext('2d'); const K = SCR.K;
   g.fillStyle = '#03060b'; g.fillRect(0, 0, scrCanvas.width, scrCanvas.height);
   for (let y = 0; y < SCR.H; y++) for (let x = 0; x < SCR.W; x++) {
@@ -362,11 +415,9 @@ function devKey(k) {
   if (h) { if (typeof h === 'string') go(h); else { h(); paint(); } }
   announce(); pressCap(k); return !!h;
 }
-const NOTES = { 'tor': 'No traffic is routed; the switch is a demo.', multisig: 'No keys are used.', 'multisig.sign': 'Nothing will be signed.', 'multisig.done': 'No key was used.', psbt: 'No PSBT is read or signed.', 'psbt.review': 'Made-up transaction.', 'psbt.confirm': 'Nothing will be broadcast.', 'psbt.done': 'Nothing was broadcast.', swap: 'Made-up pairs; no service is contacted.', 'swap.review': 'No service is contacted.', 'swap.confirm': 'Nothing will be exchanged.', 'swap.sending': 'Nothing is being exchanged.', 'swap.done': 'Nothing was exchanged.', dice: 'Fixed demo values, not random entropy.', 'pay.confirm': 'Nothing will be paid.', 'pay.sending': 'Nothing is being sent.', 'pay.done': 'Nothing was paid or sent.', 'recv.show': 'Placeholder only; not a real invoice or address.', 'recv.done': 'No payment arrived.', 'wifi.connecting': 'No Wi-Fi is being scanned or joined.', 'wifi.done': 'No Wi-Fi was joined.', 'wifi.qr': 'No camera is used.', 'wifi': 'The networks listed are made-up names.', scan: 'No camera is used.', 'scan.pick': 'Made-up codes.', 'node.done': 'No node was contacted.', 'nwc.done': 'No relay was contacted.', 'zap.done': 'No zap was sent.', setup: 'No seed or keys are created here.', pin: 'No PIN can be entered here.', price: 'Placeholder values, not real prices.', block: 'Made-up block data.', mempool: 'Made-up transaction data.' };
 function updateScreenUI() {
-  const u = UI[dev.cur], meta = SCREENS[curScreen];
-  const now = $('#screen-now'); if (now) now.textContent = `Simulated screen: ${u.label}. ${NOTES[dev.cur] || 'Nothing here is real.'}`;
-  const tip = $('#screen-tip-text'); if (tip) tip.textContent = meta ? meta.tip : '';
+  const u = UI[dev.cur];
+  const now = $('#screen-now'); if (now) now.textContent = `Screen: ${u.label}`;
   document.querySelectorAll('#screen-picker button').forEach((b, i) => b.setAttribute('aria-pressed', String(i === curScreen)));
 }
 function drawScreen(i) { const m = SCREENS[clamp(i | 0, 0, SCREENS.length - 1)]; if (m.pre) m.pre(); go(m.to); }
@@ -438,6 +489,41 @@ const LAYERS = {
   window: { off: 2.7 }, screws: { off: 5.0, spin: true }, cover: { off: 1.5 }, pcb: { off: 0 }, battery: { off: -1.25 }, inserts: { off: -1.7 }, shell: { off: -2.7 },
 };
 const layer = {}; for (const k in LAYERS) { layer[k] = new THREE.Group(); layer[k].name = k; scene.add(layer[k]); }
+// The model itself remains the sole source of geometry; the intro moves whole assembly layers.
+const intro = { phase: 'complete', start: 0, spread: 0 };
+const introNames = Object.keys(LAYERS);
+const skipIntro = document.createElement('button');
+skipIntro.id = 'skip-intro'; skipIntro.type = 'button'; skipIntro.textContent = 'Skip intro'; skipIntro.hidden = true;
+stage.appendChild(skipIntro);
+function finishIntro() {
+  if (intro.phase === 'complete') return;
+  const restoreFocus = document.activeElement === skipIntro;
+  intro.phase = 'complete'; intro.spread = 0; skipIntro.hidden = true; ground.visible = true;
+  for (const L of Object.values(layer)) { L.visible = true; L.position.set(0, 0, 0); L.rotation.set(0, 0, 0); }
+  if (restoreFocus) canvas.focus({ preventScroll: true });
+}
+skipIntro.addEventListener('click', finishIntro);
+stage.addEventListener('pointerdown', e => { if (e.target !== skipIntro) finishIntro(); }, true);
+canvas.addEventListener('wheel', finishIntro, { capture: true, passive: true });
+addEventListener('keydown', e => { if (e.key === 'Escape' || (e.target === canvas && e.key !== 'Tab')) finishIntro(); });
+RM.addEventListener('change', e => { if (e.matches) finishIntro(); });
+function stepIntro(now) {
+  if (intro.phase === 'complete') return;
+  const s = (now - intro.start) / 1000;
+  if (s < 2) { intro.phase = 'empty'; return; }
+  if (s >= 8) { finishIntro(); return; }
+  intro.phase = s < 5.5 ? 'orbit' : 'assemble';
+  const arrival = ease(clamp((s - 2) / 1.5, 0, 1));
+  const settle = 1 - ease(clamp((s - 5.5) / 2.5, 0, 1));
+  intro.spread = settle * (1.5 + 5 * arrival);
+  introNames.forEach((name, i) => {
+    const L = layer[name], angle = i * Math.PI * 2 / introNames.length + (s - 2) * .85;
+    const radius = (1 - arrival) * 19 + arrival * (4.4 + (i % 3) * .8);
+    L.visible = true;
+    L.position.set(Math.cos(angle) * radius * settle, Math.sin(angle * .8 + i) * 3.5 * settle, Math.sin(angle) * radius * settle);
+    L.rotation.set(Math.sin(angle + i) * .45 * settle, angle * .5 * settle, Math.cos(angle * .8) * .35 * settle);
+  });
+}
 const nodes = {}; const blockers = []; let capMeshes = [];
 const fitState = { rad: 5.4 };
 
@@ -502,13 +588,13 @@ const HOT = [
   { id: 'oled', node: 'oled_glass', side: 'front', anchor: [1.72, .09, -2.3], pr: 1, outside: true, t: 'OLED display', s: 'DST-013 · cyan/white UI', d: 'Small black OLED for addresses, invoices and prompts — for example the Nostr Wallet Connect confirmation. Mounted on an orange flex ribbon.' },
   { id: 'pcb', node: 'pcb_top', side: 'front', anchor: [-3.7, -.1, 2.3], pr: 2, noInside: true, t: 'Main PCB', s: '82 × 53 mm · front: OLED + buttons', d: 'Green two-sided board: OLED and four buttons on the front, ESP32-S3, USB-C, microSD, buzzer and scanner on the back.' },
   { id: 'flex', node: 'oled_flex', side: 'front', pr: 2, t: 'Flex ribbon', s: 'XF1116-07A-Y', d: 'Orange flex cable linking the OLED module to the board connector.' },
-  { id: 'buttons', node: 'sw_ok_cap', side: 'front', pr: 2, outside: true, t: '4 tactile buttons', s: 'SW1–SW4 · UP / DOWN / BACK / OK', d: 'Four SMD tactile switches sit under the cover cut-outs. Press the buttons in the 3D model to cycle the demo screens.' },
+  { id: 'buttons', node: 'sw_ok_cap', side: 'front', pr: 2, outside: true, t: '4 tactile buttons', s: 'SW1–SW4 · UP / DOWN / BACK / OK', d: 'Four SMD tactile switches sit under the cover cut-outs. Press them in the 3D model to move around the screen.' },
   { id: 'window', node: 'window', side: 'front', pr: 2, noInside: true, t: 'Polycarbonate window', s: 'CNC-cut · clear', d: 'Clear polycarbonate sheet cut from the published G-code (≈36 × 20 mm) protects the screen.' },
   { id: 'screw', node: 'screw_1', side: 'front', pr: 2, t: 'M2.5 × 6 screws', s: '4 corners · flush', d: 'Four stainless M2.5 × 6 mm screws clamp the cover to the back shell.' },
   { id: 'cover', node: 'top_cover', side: 'edge', anchor: [0, -.06, 2.9], pr: 2, noInside: true, t: 'Top cover', s: 'brushed aluminium look', d: 'Top part of the open-hardware enclosure with the display window, four button openings and corner screw holes.' },
   { id: 'esp32', node: 'esp32', side: 'back', pr: 1, t: 'ESP32-S3-WROOM-1', s: 'Wi-Fi + BLE · PCB antenna', d: 'Espressif ESP32-S3 module is the brain of the card; its PCB antenna sits at the board edge, clear of metal.' },
-  { id: 'qr', node: 'qr_scanner', side: 'back', pr: 1, t: 'QR scanner', s: 'GM803 module', d: 'Scanner module looks out through a lens opening in the back shell — it reads QR codes for invoices, Wi-Fi and node-connection codes on the fly. (Shape approximated.)' },
-  { id: 'battery', node: 'battery', side: 'back', anchor: [3.6, -.62, -.7], pr: 1, t: 'Battery', s: 'HSL 303450 · 3.7 V · approx. shape', d: 'Flat 50 × 34 × 3 mm Li-ion cell under the board. Capacity is advertised as 1000 mAh but the reference photo shows 500 mAh — not fixed here. (Position approximated.)' },
+  { id: 'qr', node: 'qr_scanner', side: 'back', pr: 1, t: 'QR scanner', s: 'GM803 module', d: 'The scanner module looks out through a lens opening in the back shell and reads QR codes for invoices, Wi-Fi and node connections on the fly.' },
+  { id: 'battery', node: 'battery', side: 'back', anchor: [3.6, -.62, -.7], pr: 1, t: 'Battery', s: '3.7 V Li-ion polymer', d: 'A flat Li-ion polymer cell sits under the board and charges over USB-C.' },
   { id: 'usbc', node: 'usbc', side: 'edge', pr: 1, t: 'USB-C', s: 'charge + data', d: 'USB-C port for charging and programming, reachable through a cut-out in the bottom edge.' },
   { id: 'sd', node: 'sdcard', side: 'edge', pr: 2, t: 'microSD slot', s: 'TF-015', d: 'microSD card slot on the bottom edge.' },
   { id: 'power', node: 'power_switch', side: 'edge', pr: 1, outside: true, t: 'Power switch', s: 'slide · bottom edge', d: 'Small slide switch with a red actuator turns the card on and off.' },
@@ -557,7 +643,8 @@ const FRAME = { rad: .42, y: .7 }, frame = { h: 0, applied: 0 };   // camera re-
 const Fr = h => 1 + FRAME.rad * h, Fy = h => FRAME.y * h;
 const view = { cur: 0, tgt: 0 };                                       // extra upward shift of the model while the mobile drawer covers the bottom
 function sph() { const o = camera.position.clone().sub(controls.target); const s = new THREE.Spherical().setFromVector3(o); return { az: s.theta, el: Math.PI / 2 - s.phi, rad: s.radius, tgt: controls.target.clone() }; }
-function fitDist(hw, hh) { const w = stageW() - (isDesktop() ? 390 : 0), h = stageH() - (isDesktop() ? 150 : 200); const ha = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)); const wa = ha * w / stageH(); const hh2 = ha * h / stageH(); return Math.max(hw / wa, hh / hh2) * 1.08; }
+const panelPx = () => isDesktop() ? $('#sidebar').offsetWidth + 30 : 0;   // sidebar width + its right margin + a gap; the model is framed in what is left
+function fitDist(hw, hh) { const w = stageW() - panelPx(), h = stageH() - (isDesktop() ? 150 : 200); const ha = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)); const wa = ha * w / stageH(); const hh2 = ha * h / stageH(); return Math.max(hw / wa, hh / hh2) * 1.08; }
 function flyTo(g, ms = 1100) {
   const a = sph(); let daz = g.az - a.az; daz = Math.atan2(Math.sin(daz), Math.cos(daz));
   tw = { t0: performance.now(), ms, a, daz, g };
@@ -575,45 +662,78 @@ let lastTouch = performance.now();
 
 function setMode(mode, opts = {}) {
   S.mode = mode; const p = PRESET[mode];
-  applyHolds();
+  S.explodeT = p.ex;
   const el = (S.flip ? -1 : 1) * p.el * Math.PI / 180;
   flyTo({ az: opts.az ?? p.az, el, rad: fitDist(p.hw, p.hh), tgt: new THREE.Vector3(...p.tgt) });
-  document.querySelectorAll('.seg button').forEach(b => b.classList.toggle('on', b.dataset.mode === mode));
   closeInfo(); lastTouch = performance.now();
+  inside.prev = null; applyInside();   // a held Shift / touch-hold stays in force over the new view
 }
-document.querySelectorAll('.seg button').forEach(b => b.addEventListener('click', () => { S.flip = false; setMode(b.dataset.mode); }));
-/* ---- hold-to-explode: hold Ctrl (desktop) or the on-screen hold control (touch / keyboard); release to reassemble ---- */
-const holds = new Set();
-const presetEx = () => (PRESET[S.mode] ? PRESET[S.mode].ex : 0);
-function applyHolds() {
-  const was = S.explodeT; S.explodeT = holds.size ? 1 : presetEx();
-  const on = holds.has('pointer') || holds.has('key'); const hb = $('#explode-hold');
-  hb.classList.toggle('on', on); hb.setAttribute('aria-pressed', String(on));
-  if (was !== S.explodeT) { const st = $('#explode-status'); if (st) st.textContent = S.explodeT === 1 ? 'Exploded view' : 'Assembled view'; }
+/* ---- explode: Ctrl + mouse wheel (gradual), two-finger drag, [ ] or Ctrl+Up/Down; see inside: hold Shift / touch-and-hold / I ---- */
+const readout = $('#explode-readout'), readoutPct = $('#explode-pct'), exStatus = $('#explode-status');
+let readoutTimer = null, statusTimer = null;
+function setExplode(v) {
+  v = clamp(v, 0, 1); if (v === S.explodeT) { showReadout(); return; }
+  S.explodeT = v; lastTouch = performance.now(); showReadout();
 }
-function hold(src) { if (holds.has(src)) return; holds.add(src); applyHolds(); lastTouch = performance.now(); }
-function release(src) { if (!holds.delete(src)) return; applyHolds(); }
-function releaseAll() { if (!holds.size) return; holds.clear(); applyHolds(); }
+function showReadout() {
+  const pct = Math.round(S.explodeT * 100); readoutPct.textContent = pct + '%'; readout.classList.add('show');
+  clearTimeout(readoutTimer); readoutTimer = setTimeout(() => readout.classList.remove('show'), 1300);
+  clearTimeout(statusTimer); statusTimer = setTimeout(() => { exStatus.textContent = 'Explode ' + pct + '%'; }, 500);
+}
+const wheelPx = e => (e.deltaMode === 1 ? e.deltaY * 33 : e.deltaMode === 2 ? e.deltaY * 400 : e.deltaY);
+// Ctrl+wheel over the stage (not the side panel) explodes the card; plain wheel still zooms; the browser's page zoom is not triggered here
+stage.addEventListener('wheel', e => {
+  if (!(e.ctrlKey || e.metaKey) || inSidebar(e.target)) return;
+  e.preventDefault(); e.stopImmediatePropagation();
+  setExplode(S.explodeT - clamp(wheelPx(e), -300, 300) * .001);
+}, { capture: true, passive: false });
+// Shift / Ctrl must not turn the left-button drag into OrbitControls' (disabled) pan: hide the modifiers from it
+canvas.addEventListener('pointerdown', e => { if (e.pointerType === 'mouse' && (e.shiftKey || e.ctrlKey || e.metaKey)) for (const k of ['shiftKey', 'ctrlKey', 'metaKey']) Object.defineProperty(e, k, { value: false }); }, { capture: true });
+
+/* inside view = the 'inside' mode (cover ghosted) while a hold is active, then back to what it was */
+const inside = { shift: false, touch: false, key: false, prev: null };
+const insideOn = () => inside.shift || inside.touch || inside.key;
+function applyInside() {
+  const on = insideOn();
+  if (on && inside.prev === null && S.mode !== 'inside') { inside.prev = S.mode; S.mode = 'inside'; lastTouch = performance.now(); }
+  else if (!on && inside.prev !== null) { S.mode = inside.prev; inside.prev = null; lastTouch = performance.now(); }
+}
+function setInside(src, v) { if (inside[src] === v) return; inside[src] = v; applyInside(); }
+const releaseInside = () => { inside.shift = inside.touch = inside.key = false; applyInside(); };
 {
-  const syncMods = e => { if (holds.has('ctrl') && e.ctrlKey === false && e.key !== 'Control') release('ctrl'); };   // recovers a stuck modifier (missed keyup)
-  ['pointermove', 'pointerdown', 'mousemove', 'mousedown', 'wheel', 'touchstart', 'keyup'].forEach(t => addEventListener(t, syncMods, { capture: true, passive: true }));
-  addEventListener('wheel', e => { if (e.ctrlKey && holds.has('ctrl')) release('ctrl'); }, { capture: true, passive: true });
-  addEventListener('blur', releaseAll); addEventListener('pagehide', releaseAll);
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' || document.hidden) releaseAll(); });
-  addEventListener('contextmenu', () => release('ctrl'));
-  // Ctrl+wheel and pinch-zoom belong to the browser (page zoom): keep OrbitControls from swallowing them
-  canvas.addEventListener('wheel', e => { if (e.ctrlKey || e.metaKey) e.stopImmediatePropagation(); }, { capture: true, passive: true });
-  const hb = $('#explode-hold');
-  hb.addEventListener('pointerdown', e => { if (e.button > 0) return; e.preventDefault(); try { hb.setPointerCapture(e.pointerId); } catch (err) { } hold('pointer'); });
-  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(t => hb.addEventListener(t, () => release('pointer')));
-  hb.addEventListener('contextmenu', e => e.preventDefault());
-  hb.addEventListener('keydown', e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); if (!e.repeat) hold('key'); } });
-  hb.addEventListener('keyup', e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); release('key'); } });
-  hb.addEventListener('blur', () => release('key'));
-  hb.addEventListener('click', e => e.preventDefault());
+  const calm = () => { const a = document.activeElement; return !a || a === document.body || a === canvas; };
+  addEventListener('keydown', e => { if (e.key === 'Shift' && !e.repeat && calm()) setInside('shift', true); });
+  addEventListener('keyup', e => { if (e.key === 'Shift') setInside('shift', false); });
+  const syncMods = e => { if (inside.shift && e.shiftKey === false) setInside('shift', false); };   // recovers a stuck Shift (missed keyup)
+  ['pointermove', 'pointerdown', 'mousemove', 'mousedown', 'wheel', 'touchstart'].forEach(t => addEventListener(t, syncMods, { capture: true, passive: true }));
+  addEventListener('blur', releaseInside); addEventListener('pagehide', releaseInside);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) releaseInside(); });
 }
-$('#labels').addEventListener('click', e => { S.labels = !S.labels; e.currentTarget.classList.toggle('on', S.labels); });
-$('#spin').addEventListener('click', e => { S.auto = !S.auto; e.currentTarget.classList.toggle('on', S.auto); sway.base = null; lastTouch = performance.now(); });
+
+/* touch: a still finger held on the scene = inside; two fingers dragging up/down together = explode (pinch still zooms) */
+const touch = { pts: new Map(), timer: null, g: null };
+function touchDown(id, x, y) {
+  touch.pts.set(id, { x, y, x0: x, y0: y });
+  if (touch.pts.size === 1) { clearTimeout(touch.timer); touch.timer = setTimeout(() => { if (touch.pts.size === 1) setInside('touch', true); }, 450); }
+  else { clearTimeout(touch.timer); setInside('touch', false); touch.g = gestureState(); }
+}
+function gestureState() { const p = [...touch.pts.values()]; return { cy: (p[0].y + p[1].y) / 2, d: Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y) }; }
+function touchMove(id, x, y) {
+  const p = touch.pts.get(id); if (!p) return; p.x = x; p.y = y;
+  if (touch.pts.size === 1 && Math.hypot(x - p.x0, y - p.y0) > 10) clearTimeout(touch.timer);
+  if (touch.pts.size === 2 && touch.g) {
+    const g = gestureState(), dy = g.cy - touch.g.cy, dd = g.d - touch.g.d;
+    if (Math.abs(dy) > Math.abs(dd) * 1.15) setExplode(S.explodeT - dy / (stageH() * .4));   // fingers up = explode, down = reassemble
+    touch.g = g;
+  }
+}
+function touchUp(id) { touch.pts.delete(id); clearTimeout(touch.timer); if (touch.pts.size < 1) setInside('touch', false); if (touch.pts.size < 2) touch.g = null; else touch.g = gestureState(); }
+canvas.addEventListener('pointerdown', e => { if (e.pointerType === 'touch') touchDown(e.pointerId, e.clientX, e.clientY); });
+canvas.addEventListener('pointermove', e => { if (e.pointerType === 'touch') touchMove(e.pointerId, e.clientX, e.clientY); });
+['pointerup', 'pointercancel'].forEach(t => addEventListener(t, e => { if (e.pointerType === 'touch') touchUp(e.pointerId); }));
+canvas.addEventListener('contextmenu', e => { if (e.pointerType === 'touch' || touch.pts.size) e.preventDefault(); });
+$('#labels').addEventListener('click', e => { S.labels = !S.labels; e.currentTarget.classList.toggle('on', S.labels); e.currentTarget.setAttribute('aria-pressed', String(S.labels)); });
+$('#spin').addEventListener('click', e => { S.auto = !S.auto; e.currentTarget.classList.toggle('on', S.auto); e.currentTarget.setAttribute('aria-pressed', String(S.auto)); sway.base = null; lastTouch = performance.now(); });
 
 /* keyboard equivalents */
 function orbitBy(daz, del) {   // keyboard orbit (OrbitControls does not expose rotateLeft/rotateUp publicly)
@@ -623,14 +743,14 @@ function orbitBy(daz, del) {   // keyboard orbit (OrbitControls does not expose 
 function dolly(f) { const o = camera.position.clone().sub(controls.target).multiplyScalar(f); o.setLength(clamp(o.length(), controls.minDistance, controls.maxDistance)); camera.position.copy(controls.target).add(o); }
 const inSidebar = t => !!(t && t.closest && t.closest('#sidebar'));
 addEventListener('keydown', e => {
-  if (e.key === 'Control') { if (!e.repeat && !(e.getModifierState && e.getModifierState('AltGraph'))) hold('ctrl'); return; }
+  if (['Shift', 'Control', 'Alt', 'Meta', 'AltGraph', 'CapsLock'].includes(e.key)) return;
   const mod = e.ctrlKey || e.metaKey || e.altKey;
-  if (['Shift', 'Alt', 'Meta', 'AltGraph', 'CapsLock'].includes(e.key)) { if (e.key !== 'Shift') release('ctrl'); return; }
   const arrow = e.key.startsWith('Arrow');
-  if (mod && !(arrow && !e.metaKey && !e.altKey)) { release('ctrl'); return; }     // browser/OS shortcut chords (zoom, tabs, copy ...) are never hijacked
+  if (mod && !(arrow && !e.metaKey && !e.altKey)) return;     // browser/OS shortcut chords (zoom, tabs, copy ...) are never hijacked
   const t = e.target;
   if (e.key === 'Escape') { escapeKey(); e.preventDefault(); return; }
   if (inSidebar(t) || (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable))) return;   // never steal scrolling/typing inside the panel
+  if (e.ctrlKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) { setExplode(S.explodeT + (e.key === 'ArrowUp' ? .1 : -.1)); e.preventDefault(); return; }   // keyboard explode
   const step = 0.12;
   switch (e.key) {
     case 'ArrowLeft': orbitBy(-step, 0); break;
@@ -639,6 +759,9 @@ addEventListener('keydown', e => {
     case 'ArrowDown': orbitBy(0, -step); break;
     case '+': case '=': dolly(1 / 1.12); break;
     case '-': case '_': dolly(1.12); break;
+    case '[': setExplode(S.explodeT - .1); e.preventDefault(); return;
+    case ']': setExplode(S.explodeT + .1); e.preventDefault(); return;
+    case 'i': case 'I': setInside('key', !inside.key); e.preventDefault(); return;
     case '1': S.flip = false; setMode('outside'); break;
     case '2': S.flip = false; setMode('inside'); break;
     case '3': S.flip = false; setMode('exploded'); break;
@@ -649,7 +772,6 @@ addEventListener('keydown', e => {
   e.preventDefault();
   lastTouch = performance.now(); sway.base = null; tw = null; controls.update();
 });
-addEventListener('keyup', e => { if (e.key === 'Control') release('ctrl'); });
 function escapeKey() {
   const v = __sidebar.view();
   if (v === 'photo') { __sidebar.back(); return; }
@@ -715,53 +837,47 @@ const ICON = {
   dice: '<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8.500 8.500h.01M15.500 8.500h.01M12 12h.01M8.500 15.500h.01M15.500 15.500h.01"/>',
   standalone: '<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h4M7 14h2"/>',
 };
-/* badge: shown for anything that is not documented in the manufacturer's FAQ/site; see "Feature status" */
-const PRODUCER = 'Producer information';
 const FEATURES = [
-  { ic: 'wallet', t: 'Self-custody card', d: 'The manufacturer says your keys stay on the card.', mode: 'inside', focus: 'esp32', exp: ['Self-custody', 'The manufacturer says your keys stay on the card. It is a transfer tool, not a cold-storage replacement.'] },
-  { ic: 'pay', t: 'Lightning via NWC', d: 'Pay BOLT11 invoices from your wallet balance, a home node or Nostr Wallet Connect.', mode: 'outside', focus: 'oled', screen: 'pay', exp: ['Lightning payments', 'Speaks the Bitcoin protocol natively and pays Lightning invoices on the card: from the wallet balance, a home Lightning node, or Nostr Wallet Connect (official tutorial, lesson 4).'] },
-  { ic: 'nostr', t: 'Nostr zaps', d: 'A built-in Nostr client pairs NWC and zaps friends added by Nostr public key.', mode: 'outside', focus: 'oled', screen: 1, exp: ['Nostr on board', 'A built-in Nostr client pairs Nostr Wallet Connect to pay invoices and zaps friends you add by Nostr public key (FAQ).'] },
-  { ic: 'qr', t: 'QR scanning', d: 'The built-in scanner reads invoices, Wi-Fi and node codes on the fly.', mode: 'inside', focus: 'qr', screen: 2, exp: ['Scan to pay', 'A dedicated scanner chip decodes QR codes on the fly — standard codes; inverted or coloured scanning needs enabling.'] },
-  { ic: 'node', t: 'Native SPV, no Electrum', d: 'Direct peer-to-peer with SPV header verification; connect to your own Bitcoin node via a btcnode: QR code.', mode: 'inside', focus: 'esp32', screen: 3, exp: ['SPV and your own node', 'Connects over the native Bitcoin protocol with SPV header verification — no Electrum server. SPV is not full-node validation. Your own Bitcoin node is a separate device you run; the card links to it with a btcnode: QR code.'] },
-  { ic: 'pin', t: 'PIN & decoy mode', d: 'PIN and decoy mode are described by the manufacturer.', mode: 'outside', focus: 'buttons', screen: 4, exp: ['PIN & decoy', 'The manufacturer describes PIN and decoy mode, but its descriptions differ.'] },
-  { ic: 'open', t: 'Open hardware', d: 'Download the enclosure files and print your own case.', mode: 'exploded', focus: null, exp: ['Open hardware', 'The enclosure STLs, screen cut path and STEP board model are published for download.'] },
-  { ic: 'price', t: 'Real-time BTC price', d: 'Live price and fee data on the card.', mode: 'outside', focus: 'oled', screen: 'price', exp: ['Price & fees', 'The FAQ says Bitcoin price and fee data are fetched without a central server and shown on the card. Values on the simulated screen are placeholders.'] },
-  { ic: 'shield', t: 'Secure elements', d: 'Used mainly to generate your seed during wallet setup.', mode: 'inside', focus: null, screen: 'setup', exp: ['Secure element', 'The FAQ says the secure element is used primarily to generate a new seed phrase during wallet setup. The site also advertises an “EAL-certified” element; that certification is a manufacturer claim.'] },
-  { ic: 'pay', t: 'Lightning via Arkade', badge: PRODUCER, d: 'Lightning payments powered by Arkade.', mode: 'outside', focus: 'oled', screen: 'arkade', sub: 'Producer information · newer than the public FAQ', exp: ['Lightning via Arkade', 'Lightning payments powered by Arkade are available, per the producer. A June 2026 post on the manufacturer’s X account first described it as Developer Mode. The simulated screen shows Arkade as a payment source.'] },
-  { ic: 'tor', t: 'Tor support', badge: PRODUCER, d: 'Tor is listed among the card’s features.', mode: 'outside', focus: 'oled', screen: 'tor', sub: 'Producer information · newer than the public FAQ', exp: ['Tor support', 'Tor support is listed by the producer. The older public FAQ answer (“Is VPN or Tor built in?”) is preserved on the FAQ page and may differ from this newer information.'] },
-  { ic: 'multisig', t: 'Bitcoin multisig', badge: PRODUCER, d: 'Multisignature Bitcoin wallets.', mode: 'outside', focus: 'oled', screen: 'multisig', sub: 'Producer information · newer than the public FAQ', exp: ['Bitcoin multisig', 'Bitcoin multisig is listed by the producer. How policies and co-signing work on the card was not supplied, so the simulated screen is only an illustration.'] },
-  { ic: 'xmr', t: 'XMR payments', badge: PRODUCER, d: 'Pay with Monero (XMR).', mode: 'outside', focus: 'oled', screen: 'xmr', sub: 'Producer information · newer than the public FAQ', exp: ['XMR payments', 'XMR (Monero) payments are listed by the producer. How they work on the card was not supplied, so the simulated screen is only an illustration.'] },
-  { ic: 'psbt', t: 'PSBT with an external signer', badge: PRODUCER, d: 'PSBT workflow with an external air-gapped wallet. The card is not air-gapped.', mode: 'outside', focus: 'oled', screen: 'psbt', sub: 'Producer information · newer than the public FAQ', exp: ['PSBT workflow', 'The producer lists a PSBT workflow with an external air-gapped wallet. The air-gapped device is the external signer; the card itself uses Wi-Fi and is not air-gapped. Moving a PSBT between the two devices is part of the workflow.'] },
-  { ic: 'swap', t: 'Swaps via Trocador', badge: PRODUCER, d: 'USDT, USDC, ETH, BTC and XMR swaps through a third-party service.', mode: 'outside', focus: 'oled', screen: 'swap', sub: 'Producer information · newer than the public FAQ', exp: ['Swaps via Trocador', 'The producer lists swaps between USDT, USDC, ETH, BTC and XMR via Trocador (trocador.app), a third-party swap service. Rates, fees and terms come from that service, not from the Bitcoin network. How it appears on the card was not supplied.'] },
-  { ic: 'dice', t: 'Dice rolls', badge: PRODUCER, d: 'Dice rolls are listed among the card’s features.', mode: 'outside', focus: 'oled', screen: 'dice', sub: 'Producer information · newer than the public FAQ', exp: ['Dice rolls', 'Dice rolls are listed by the producer. The simulated rolls are fixed demo values, not random entropy, and nothing is generated.'] },
-  { ic: 'standalone', t: 'Standalone card', badge: PRODUCER, d: 'Made to be used without a computer or phone app.', mode: 'outside', focus: 'buttons', screen: 'balance', sub: 'Producer information · newer than the public FAQ', exp: ['Standalone use', 'The producer describes the card as standalone: no computer or phone app is needed to pay. Some setup tasks, such as generating Wi-Fi or node QR codes, preparing the SD card or flashing firmware, may still use another device.'] },
+  { ic: 'pay', t: 'Lightning via NWC', d: 'Pay Lightning invoices straight from the card through Nostr Wallet Connect.', mode: 'outside', focus: 'oled', screen: 'nwc', exp: ['Lightning via NWC', 'Link a Nostr Wallet Connect wallet and pay BOLT11 Lightning invoices from the card.'] },
+  { ic: 'wallet', t: 'Lightning via Arkade', d: 'Lightning payments powered by Arkade.', mode: 'outside', focus: 'oled', screen: 'arkade', exp: ['Lightning via Arkade', 'Lightning payments powered by Arkade, right from the card.'] },
+  { ic: 'node', t: 'Native SPV client, no Electrum server', d: 'Talks to the Bitcoin network directly and verifies block headers itself.', mode: 'inside', focus: 'esp32', screen: 'node', exp: ['Native SPV client', 'The card speaks the Bitcoin protocol natively and connects to peers directly, verifying block headers with SPV. There is no Electrum server in between.'] },
+  { ic: 'tor', t: 'Tor support', d: 'Private connections over Tor.', mode: 'outside', focus: 'oled', screen: 'tor', exp: ['Tor support', 'Tor support for more private connections.'] },
+  { ic: 'multisig', t: 'Bitcoin multisig', d: 'Spend from multisig wallets with several signers.', mode: 'outside', focus: 'oled', screen: 'multisig', exp: ['Bitcoin multisig', 'Bitcoin multisig support: co-sign spends together with your other signers.'] },
+  { ic: 'xmr', t: 'XMR payments', d: 'Pay with Monero right from the card.', mode: 'outside', focus: 'oled', screen: 'xmr', exp: ['XMR payments', 'Choose Monero as the payment type, review the amount on the card’s screen and approve.'] },
+  { ic: 'nostr', t: 'Zap your Nostr friends', d: 'Add friends by their Nostr public key and send them zaps.', mode: 'outside', focus: 'oled', screen: 'zap', exp: ['Zap your Nostr friends', 'A built-in Nostr client keeps your friends list by public key, so you can zap them.'] },
+  { ic: 'price', t: 'Real-time BTC price feed', d: 'Live Bitcoin price and fee data on the screen.', mode: 'outside', focus: 'oled', screen: 'price', exp: ['Real-time BTC price feed', 'Bitcoin price and fee data are fetched without a central server and shown right on the card.'] },
+  { ic: 'psbt', t: 'PSBT sync with external air-gapped wallet', d: 'Create a PSBT, sign it on your air-gapped wallet, broadcast with Wesatoshis.', mode: 'outside', focus: 'oled', screen: 'psbt', exp: ['PSBT sync', 'Create a PSBT on the card, sign it on your external air-gapped wallet, then broadcast the signed transaction with Wesatoshis.'] },
+  { ic: 'swap', t: 'Swap USDT/USDC/ETH/BTC/XMR via Trocador', d: 'Swap between USDT, USDC, ETH, BTC and XMR through Trocador.', mode: 'outside', focus: 'oled', screen: 'swap', exp: ['Swaps via Trocador', 'Pick a pair, review the swap and confirm. Swaps between USDT, USDC, ETH, BTC and XMR run through Trocador.'] },
+  { ic: 'open', t: 'Connect your own Bitcoin node', d: 'Link the card to your own node by scanning a QR code.', mode: 'outside', focus: 'oled', screen: 'node', exp: ['Your own Bitcoin node', 'Scan a btcnode: QR code and the card connects to the node you run at home. Domain names work too.'] },
+  { ic: 'shield', t: 'Secure elements', d: 'A secure element generates your seed during wallet setup.', mode: 'inside', focus: null, screen: 'setup', exp: ['Secure elements', 'A secure element generates your new seed phrase while you set up the wallet.'] },
+  { ic: 'dice', t: 'Dice rolls', d: 'Dice-roll support, built in.', mode: 'outside', focus: 'oled', screen: 'dice', exp: ['Dice rolls', 'Dice-roll support is built into the card.'] },
+  { ic: 'standalone', t: 'Use without computer or mobile app', d: 'Pay and receive with just the card — no computer or phone app needed.', mode: 'outside', focus: 'buttons', screen: 'balance', exp: ['No computer or phone app', 'Four buttons, a screen and a built-in scanner are all you need to pay and receive.'] },
 ];
 FEATURES.forEach((f, i) => {
   const li = document.createElement('li');
-  li.innerHTML = `<button data-i="${i}"><span class="ic"><svg viewBox="0 0 24 24">${ICON[f.ic]}</svg></span><span><b>${f.t}</b>${f.badge ? `<span class="bdg">${f.badge}</span>` : ''}<span class="d">${f.d}</span></span></button>`;
+  li.innerHTML = `<button data-i="${i}"><span class="ic"><svg viewBox="0 0 24 24">${ICON[f.ic]}</svg></span><span><b>${f.t}</b><span class="d">${f.d}</span></span></button>`;
   li.firstChild.addEventListener('click', () => { document.querySelectorAll('#feat-list button').forEach(b => b.classList.remove('on')); li.firstChild.classList.add('on'); applyFeature(f); });
   $('#feat-list').appendChild(li);
 });
 function applyFeature(f) {
   if (f.run) f.run(); else if (f.screen != null) drawScreen(typeof f.screen === 'string' ? SCREENS.findIndex(x => x.id === f.screen) : f.screen);
   S.flip = f.focus === 'qr' || f.focus === 'esp32';
-  setMode(f.mode); showInfo({ t: f.exp[0], s: f.sub || 'Manufacturer-described feature', d: f.exp[1] }, { pinned: true });
-  const link = $('#info-link'); link.hidden = false; link.href = f.ic === 'open' ? 'https://wesatoshis.com/enclosure/' : f.ic === 'qr' || f.ic === 'node' ? 'https://wesatoshis.com/qr' : 'https://wesatoshis.com/'; link.textContent = f.ic === 'open' ? 'Explore enclosure files ↗' : f.ic === 'qr' || f.ic === 'node' ? 'Explore QR generator ↗' : 'Explore the card at wesatoshis.com ↗';
+  setMode(f.mode); showInfo({ t: f.exp[0], s: 'Feature', d: f.exp[1] }, { pinned: true });
+  const link = $('#info-link'); link.hidden = false; link.href = f.ic === 'open' ? 'https://wesatoshis.com/qr' : 'https://wesatoshis.com/'; link.textContent = f.ic === 'open' ? 'Make a node QR code ↗' : 'Explore the card at wesatoshis.com ↗';
   if (f.exp) showExplain(f.exp[0], f.exp[1]);
 }
-/* screen picker (index of the simulated screens) + on-screen device buttons (keyboard / touch alternative to the 3D buttons) */
-SCREENS.forEach((m, i) => { const b = document.createElement('button'); b.type = 'button'; b.dataset.screen = i; b.textContent = m.label; b.setAttribute('aria-pressed', 'false'); b.title = m.src; b.addEventListener('click', () => { drawScreen(i); announce(); }); $('#screen-picker').appendChild(b); });
-document.querySelectorAll('#device-pad button[data-key]').forEach(b => b.addEventListener('click', () => devKey(b.dataset.key)));
+/* screen picker: jump to any screen on the card's display */
+SCREENS.forEach((m, i) => { const b = document.createElement('button'); b.type = 'button'; b.dataset.screen = i; b.textContent = m.label; b.setAttribute('aria-pressed', 'false'); b.addEventListener('click', () => { drawScreen(i); announce(); }); $('#screen-picker').appendChild(b); });
 
 const COMPONENT_FACTS = {
-  oled: 'The manufacturer describes prompts for Bitcoin, Lightning and Nostr. The screen here is a simulation: use the card’s UP, DOWN, BACK and OK buttons, nothing is connected, paid or sent.',
-  qr: 'The manufacturer says the scanner reads invoices, Wi-Fi and node codes; inverted or coloured codes require enabling.',
-  battery: 'The manufacturer advertises up to three hours of continuous use and about 35 minutes to charge; the capacity discrepancy is unresolved.',
-  sd: 'The manufacturer says the SD card stores headers and encrypted wallet data and supports offline firmware updates. Recovery is not explained in the FAQ.',
-  esp32: 'The manufacturer describes direct Bitcoin peer-to-peer connections and SPV header verification, not full-node validation. It also lists a hardware secure element used mainly to generate your seed.',
-  buttons: 'The manufacturer describes PIN and decoy mode, but its descriptions of their interaction differ. Click UP, DOWN, BACK or OK on the model to move around the simulated screen.',
-  buzzer: 'The manufacturer says sound can be switched on or off in settings.',
-  shell: 'The manufacturer publishes enclosure files and assembly specifications.'
+  oled: 'Press the card’s UP, DOWN, BACK and OK buttons on the model to move around the screen.',
+  qr: 'Reads invoices, Wi-Fi and node codes. Inverted or coloured codes work after scanning an enabling code.',
+  battery: 'Up to three hours of continuous use at full power, and about 35 minutes for a full charge.',
+  sd: 'Holds blockchain headers and your encrypted wallet, and installs firmware updates offline.',
+  esp32: 'Connects directly to Bitcoin peers and verifies block headers (SPV). A secure element generates your seed during setup.',
+  buttons: 'Click UP, DOWN, BACK or OK on the model to move around the screen. The card supports PIN protection and decoy mode.',
+  buzzer: 'Sound can be switched on or off in settings.',
+  shell: 'The enclosure files and assembly specs are published for download.'
 };
 function showInfo(h, { pinned = false, preview = false } = {}) {
   $('#info-link').hidden = true;
@@ -848,14 +964,16 @@ function resize() {
   view.tgt = sheetShift(); view.cur = view.tgt; applyView(); sky.setPixelRatio(renderer.getPixelRatio());
 }
 function sheetShift() { if (!window.__sidebar || !__sidebar.isDrawer() || !__sidebar.isOpen()) return 0; return Math.max(0, Math.round($('#sidebar').getBoundingClientRect().height / 2 - 55)); }
-function applyView() { const w = stageW(), h = stageH(); camera.setViewOffset(w, h, isDesktop() ? 190 : 0, 55 + view.cur, w, h); camera.updateProjectionMatrix(); }
+function applyView() { const w = stageW(), h = stageH(); camera.setViewOffset(w, h, isDesktop() ? Math.round((panelPx() - 10) / 2) : 0, 55 + view.cur, w, h); camera.updateProjectionMatrix(); }
 $('#sidebar').addEventListener('sbchange', () => { view.tgt = sheetShift(); });
-addEventListener('resize', () => { resize(); const p = PRESET[S.mode]; if (p && !tw) { const a = sph(); camera.position.sub(controls.target).setLength(fitDist(p.hw, p.hh) * Fr(frame.h)).add(controls.target); } });
+const refit = () => { resize(); const p = PRESET[inside.prev ?? S.mode]; if (p && !tw) { camera.position.sub(controls.target).setLength(fitDist(p.hw, p.hh) * Fr(frame.h)).add(controls.target); } };
+addEventListener('resize', refit);
+$('#sidebar').addEventListener('sbresize', refit);   // the user dragged the side panel's resize handle
 
 function tick() {
   const dt = Math.min(clock.getDelta(), .05), now = performance.now();
   const rm = prefersReduced();
-  const hT = (holds.size && presetEx() < 1) ? 1 : 0;
+  const hT = (inside.prev ?? S.mode) !== 'exploded' ? S.explodeT : 0;
   frame.h = rm ? hT : frame.h + (hT - frame.h) * (1 - Math.exp(-dt * 5)); if (Math.abs(frame.h - hT) < .002) frame.h = hT;
   stepTween(now);
   if (!tw && frame.h !== frame.applied) {
@@ -868,6 +986,7 @@ function tick() {
   if (Math.abs(S.explode - S.explodeT) < .002) S.explode = S.explodeT;
   const t = S.explode;
   for (const k in LAYERS) { const L = layer[k]; L.position.y = LAYERS[k].off * t; if (LAYERS[k].spin) L.rotation.y = 0; }
+  stepIntro(now);
   for (let i = 0; i < 4; i++) { /* screws spin about their own axes while lifting */ }
   // caps press animation
   for (const [m, t0] of pressing) { const k = (now - t0) / 260; if (!(m.uuid in baseCapY)) baseCapY[m.uuid] = m.position.y; m.position.y = baseCapY[m.uuid] - Math.sin(clamp(k, 0, 1) * Math.PI) * .05; if (k >= 1) { m.position.y = baseCapY[m.uuid]; pressing.delete(m); } }
@@ -880,15 +999,15 @@ function tick() {
   // ground follows the lowest layer
   ground.position.y = -.74 + LAYERS.shell.off * t - .5; ground.scale.setScalar(1 + .25 * t); ground.material.opacity = .95 - .2 * t;
   // idle sway
-  if (S.auto && !tw && !S.sel && now - lastTouch > 2500) {
+  if (intro.phase === 'complete' && S.auto && !tw && !S.sel && now - lastTouch > 2500) {
     if (sway.base === null) { sway.base = Math.atan2(camera.position.x - controls.target.x, camera.position.z - controls.target.z); sway.phase = 0; }
     sway.phase += dt * .38; const az = sway.base + Math.sin(sway.phase) * .8; const prev = Math.atan2(camera.position.x - controls.target.x, camera.position.z - controls.target.z);
     const d = az - prev; const o = camera.position.clone().sub(controls.target).applyAxisAngle(new THREE.Vector3(0, 1, 0), d); camera.position.copy(controls.target).add(o);
   }
   controls.update();
-  updateHotspots(now);
-  updatePhoto();
+  if (intro.phase === 'complete') { updateHotspots(now); updatePhoto(); }
   sky.stars.position.copy(camera.position);
+  camera.updateMatrixWorld();
   renderer.render(scene, camera);
 }
 
@@ -896,7 +1015,7 @@ function updateHotspots(now) {
   const show = S.labels, w = stageW(), h = stageH(), small = !isDesktop();
   const doOcc = now - lastOcc > 180; if (doOcc) lastOcc = now;
   const exploded = S.explode > .25, inside = S.mode === 'inside';
-  const cx = isDesktop() ? (w - 378) / 2 : w / 2, limitR = isDesktop() ? w - 396 : w - 6;
+  const cx = isDesktop() ? (w - (panelPx() - 12)) / 2 : w / 2, limitR = isDesktop() ? w - (panelPx() + 6) : w - 6;
   const items = [];
   for (const hs of HOT) {
     const el = hsEls[hs.id]; if (!el) continue;
@@ -956,17 +1075,21 @@ function updateHotspots(now) {
   const sc = hash.find(x => x.startsWith('screen=')); if (sc) drawScreen(+sc.split('=')[1] || 0);
   if (hash.includes('still')) S.auto = false;
   if (reducedMotion) { S.auto = false; sway.phase = 0; }
-  $('#spin').classList.toggle('on', S.auto);
+  $('#spin').classList.toggle('on', S.auto); $('#spin').setAttribute('aria-pressed', String(S.auto));
   S.mode = mode; S.explodeT = p.ex; S.explode = p.ex;
-  document.querySelectorAll('.seg button').forEach(b => b.classList.toggle('on', b.dataset.mode === mode));
+  if (!prefersReduced() && !hash.includes('still')) {
+    intro.phase = 'empty'; intro.start = performance.now(); ground.visible = false;
+    for (const L of Object.values(layer)) L.visible = false;
+    skipIntro.hidden = false;
+  }
   flyTo({ az, el, rad, tgt: new THREE.Vector3(...p.tgt) }, 1600);
-  if (hash.includes('still')) { tw = null; camera.position.setFromSpherical(new THREE.Spherical(rad, Math.PI / 2 - el, az)).add(new THREE.Vector3(...p.tgt)); controls.update(); }
+  if (hash.includes('still') || prefersReduced()) { tw = null; camera.position.setFromSpherical(new THREE.Spherical(rad, Math.PI / 2 - el, az)).add(new THREE.Vector3(...p.tgt)); controls.update(); }
   const sel = hash.find(x => x.startsWith('select=')); if (sel) setTimeout(() => select(sel.split('=')[1]), 100);
   $('#bar').style.width = '100%'; setTimeout(() => $('#loader').classList.add('done'), 250);
   updateScreenUI();
   renderer.setAnimationLoop(tick);
   window.__viz = { S, M, scene, nodes, setMode, select, camera, controls, drawScreen, THREE, renderer, layer, anchors, sky,
-    holds: () => [...holds], screens: SCREENS, screenCanvas: scrCanvas, screenText: i => { drawScreen(i); return texts.slice(); }, currentScreen: () => curScreen, viewShift: () => view.cur,
+    intro: { state: () => ({ phase: intro.phase, spread: intro.spread }), skip: finishIntro }, inside: () => ({ on: insideOn(), prev: inside.prev, ...inside }), setExplode, explode: () => ({ target: S.explodeT, current: S.explode }), input: { touchDown, touchMove, touchUp }, screens: SCREENS, screenCanvas: scrCanvas, screenText: i => { drawScreen(i); return texts.slice(); }, currentScreen: () => curScreen, viewShift: () => view.cur,
     capClient,
     ui: { states: () => Object.keys(UI), state: () => dev.cur, data: () => JSON.parse(snapshot()), key: devKey, snapshot, restore, stats: paintStats, go, setManual: v => { manualTimers = !!v; clearTimeout(dev.timer); }, setTimerScale: v => { timerScale = v; }, fireAuto: () => { const u = UI[dev.cur]; if (u.auto) go(u.auto.to); }, hasAuto: () => !!UI[dev.cur].auto, announced: () => announced, setPay: (k, f) => { dev.payKind = k; dev.payFrom = f; } } };
   window.__product = {
