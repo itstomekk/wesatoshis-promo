@@ -60,6 +60,8 @@ export function initSound() {
     // Trigger at actual animation milestones; calls while muted are discarded, never queued.
     // Camera shutter click for the selfie gag; silent unless sound is on.
     shutter() { tone(2400, 900, 0.05, 0.07, 'square'); setTimeout(() => tone(1500, 500, 0.07, 0.06, 'square'), 70); },
+    // Stepper-motor feed while the joke photo prints: one short buzz per step.
+    printer(ms = 1800, steps = 12) { for (let i = 0; i < steps; i++) setTimeout(() => tone(190, 150, Math.min(.08, ms / steps / 1000 * .5), 0.035, 'sawtooth'), i * ms / steps); },
     flyby() { tone(420, 145, 0.65, 0.045); },
     assembly() { tone(640, 210, 0.11, 0.07, 'triangle'); },
     state() { return { enabled, contextState: context ? context.state : 'not-created' }; }

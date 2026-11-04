@@ -15,7 +15,7 @@ const MM = 0.1;                       // CAD mm -> scene cm
 const isDesktop = () => innerWidth > 860;
 const stage = $('#stage');
 const sound = initSound();
-const selfie = initSelfie(stage, () => prefersReduced(), { onShutter: () => sound.shutter() });
+const selfie = initSelfie(stage, () => prefersReduced(), { onShutter: () => sound.shutter(), onPrint: (ms, n) => sound.printer(ms, n), slot: () => cardSlot() });
 const stageW = () => stage.clientWidth || innerWidth;
 const stageH = () => stage.clientHeight || innerHeight;
 const RM = matchMedia('(prefers-reduced-motion: reduce)');
@@ -504,7 +504,7 @@ canvas.addEventListener('pointermove', e => {
 canvas.addEventListener('pointerleave', () => { hover.x = hover.y = 0; });
 canvas.addEventListener('pointerdown', () => { hover.x = hover.y = 0; });
 // The model itself remains the sole source of geometry; the intro moves whole assembly layers.
-const intro = { phase: 'complete', start: 0, spread: 0, soundPhase: '' };
+const intro = { phase: 'complete', start: 0, spread: 0, soundPhase: '', cam: true, closeup: false };
 const introNames = Object.keys(LAYERS);
 const skipIntro = document.createElement('button');
 skipIntro.id = 'skip-intro'; skipIntro.type = 'button'; skipIntro.textContent = 'Skip intro'; skipIntro.hidden = true;
@@ -514,6 +514,8 @@ function finishIntro() {
   const restoreFocus = document.activeElement === skipIntro;
   intro.phase = 'complete'; intro.spread = 0; skipIntro.hidden = true; ground.visible = true;
   for (const L of Object.values(layer)) { L.visible = true; L.position.set(0, 0, 0); L.rotation.set(0, 0, 0); }
+  // from the close-up the camera glides back to the normal view; the slow turntable eases in from there
+  if (intro.cam) flyTo(presetGoal(S.mode), INTRO_PULLBACK_MS);
   if (restoreFocus) canvas.focus({ preventScroll: true });
 }
 skipIntro.addEventListener('click', finishIntro);
@@ -526,6 +528,7 @@ function stepIntro(now) {
   if (s < 2) { intro.phase = 'empty'; return; }
   if (s >= 8) { finishIntro(); return; }
   intro.phase = s < 5.5 ? 'orbit' : 'assemble';
+  if (s >= 5.5 && !intro.closeup && intro.cam) { intro.closeup = true; flyTo(closeupGoal(), (8 - s) * 1000); }   // push in while the parts settle
   if (intro.phase !== intro.soundPhase) {
     intro.soundPhase = intro.phase;
     if (intro.phase === 'orbit') sound.flyby(); else sound.assembly();
@@ -658,6 +661,20 @@ const PRESET = {
   exploded: { az: .62, el: 20, hw: 5.7, hh: 5.8, tgt: [0, .8, 0], ex: 1 },
 };
 let tw = null;
+const INTRO_PULLBACK_MS = 3800;
+function presetGoal(mode) { const p = PRESET[mode]; return { az: p.az, el: (S.flip ? -1 : 1) * p.el * Math.PI / 180, rad: fitDist(p.hw, p.hh), tgt: new THREE.Vector3(...p.tgt) }; }
+/* end of the assembly intro: close over the card's face, a little turned, before pulling back */
+function closeupGoal() { const g = presetGoal(S.mode); return { az: g.az + .38, el: g.el + .2, rad: g.rad * .5, tgt: g.tgt.clone().add(new THREE.Vector3(0, .05, 0)) }; }
+/* the card's top edge on screen (client px), where the joke photo prints out */
+function cardSlot() {
+  const box = new THREE.Box3().setFromObject(model); if (box.isEmpty()) return null;
+  const r = canvas.getBoundingClientRect(), v = new THREE.Vector3(); let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+  for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) {
+    v.set(x, y, z).project(camera); const px = r.left + (v.x + 1) / 2 * r.width, py = r.top + (1 - v.y) / 2 * r.height;
+    x0 = Math.min(x0, px); x1 = Math.max(x1, px); y0 = Math.min(y0, py); y1 = Math.max(y1, py);
+  }
+  return { x: (x0 + x1) / 2, y: y0 + (y1 - y0) * .1, w: x1 - x0 };
+}
 const FRAME = { rad: .42, y: .7 }, frame = { h: 0, applied: 0 };   // camera re-framing while an explosion is held
 const Fr = h => 1 + FRAME.rad * h, Fy = h => FRAME.y * h;
 const view = { cur: 0, tgt: 0 };                                       // extra upward shift of the model while the mobile drawer covers the bottom
@@ -676,7 +693,7 @@ function stepTween(now) {
   const sp = new THREE.Spherical(rad, Math.PI / 2 - clamp(el, -1.5, 1.5), az); camera.position.setFromSpherical(sp).add(tgt); controls.target.copy(tgt); camera.lookAt(tgt);
   if (k >= 1) { tw = null; sway.base = null; }
 }
-controls.addEventListener('start', () => { tw = null; frame.applied = frame.h; lastTouch = performance.now(); sway.base = null; });
+controls.addEventListener('start', () => { if (intro.phase !== 'complete') intro.cam = false; tw = null; frame.applied = frame.h; lastTouch = performance.now(); sway.base = null; });
 let lastTouch = performance.now();
 
 function setMode(mode, opts = {}) {
@@ -931,7 +948,7 @@ function applyFeature(f) {
 
 const COMPONENT_FACTS = {
   oled: 'Press the card’s UP, DOWN, BACK and OK buttons on the model to move around the screen.',
-  qr: 'Reads invoices, Wi-Fi and node codes. Inverted or coloured codes work after scanning an enabling code. On this page, tap the camera for a joke selfie (no real camera is used).',
+  qr: 'Reads invoices, Wi-Fi and node codes. Inverted or coloured codes work after scanning an enabling code. On this page, tap the camera and smile (no real camera is used).',
   battery: 'Up to three hours of continuous use at full power, and about 35 minutes for a full charge.',
   sd: 'Holds blockchain headers and your encrypted wallet, and installs firmware updates offline.',
   esp32: 'Connects directly to Bitcoin peers and verifies block headers (SPV). A secure element generates your seed during setup.',
@@ -1089,7 +1106,7 @@ function syncSoundUI(on) {
 sound.onChange(syncSoundUI);
 async function activate(id) {
   finishIntro();
-  if (id === 'qr') { if (selfie.trigger()) { setHover(null, 'canvas'); compStatus.textContent = 'Taking a joke selfie'; } return; }
+  if (id === 'qr') { if (selfie.trigger()) { setHover(null, 'canvas'); compStatus.textContent = 'Say cheese!'; } return; }
   if (id === 'buzzer') {
     const was = sound.state().enabled, on = await sound.toggle();
     toast('buzzer', on ? 'Sound on' : was ? 'Sound off' : 'Sound unavailable');
@@ -1102,7 +1119,7 @@ function syncAction(id = S.sel) {
   if (!c || !actBtn) { if (actBtn) actBtn.hidden = true; return; }
   actBtn.hidden = false; actBtn.dataset.comp = id;
   if (id === 'buzzer') { const on = sound.state().enabled; actBtn.textContent = on ? 'Sound is on – turn it off' : 'Sound is off – turn it on'; actBtn.setAttribute('aria-pressed', String(on)); }
-  else { actBtn.textContent = 'Take the joke selfie'; actBtn.removeAttribute('aria-pressed'); }
+  else { actBtn.textContent = 'Take a selfie'; actBtn.removeAttribute('aria-pressed'); }
 }
 if (actBtn) actBtn.addEventListener('click', () => activate(actBtn.dataset.comp));
 document.querySelectorAll('[data-comp]').forEach(b => { if (b !== actBtn) b.addEventListener('click', () => select(b.dataset.comp)); });
@@ -1283,7 +1300,7 @@ function updateHotspots(now) {
   renderer.setAnimationLoop(tick);
   window.__viz = { S, M, scene, nodes, setMode, select, camera, controls, drawScreen, THREE, renderer, layer, anchors, sky,
     sound, intro: { state: () => ({ phase: intro.phase, spread: intro.spread }), skip: finishIntro }, inside: () => ({ on: insideOn(), prev: inside.prev, ...inside }), setExplode, explode: () => ({ target: S.explodeT, current: S.explode }), input: { touchDown, touchMove, touchUp }, screens: SCREENS, screenCanvas: scrCanvas, screenText: i => { drawScreen(i); return texts.slice(); }, currentScreen: () => curScreen, viewShift: () => view.cur,
-    capClient, groups: { set: setGroup, get: () => groupIx, names: GROUPS.map(g => g.name), shows: groupShows }, comp: { at: compAt, client: compClient, hover: () => compHover, activate, selfie, tipText, gagWeight: () => gag.w, autoRotating: () => controls.autoRotate },
+    capClient, groups: { set: setGroup, get: () => groupIx, names: GROUPS.map(g => g.name), shows: groupShows }, comp: { at: compAt, client: compClient, hover: () => compHover, activate, selfie, tipText, gagWeight: () => gag.w, autoRotating: () => controls.autoRotate, tweening: () => !!tw },
     ui: { states: () => Object.keys(UI), state: () => dev.cur, data: () => JSON.parse(snapshot()), key: devKey, snapshot, restore, stats: paintStats, go, setManual: v => { manualTimers = !!v; clearTimeout(dev.timer); }, setTimerScale: v => { timerScale = v; }, fireAuto: () => { const u = UI[dev.cur]; if (u.auto) go(u.auto.to); }, hasAuto: () => !!UI[dev.cur].auto, announced: () => announced, setPay: (k, f) => { dev.payKind = k; dev.payFrom = f; } } };
   window.__product = {
     photos: PHOTOS.map(p => ({ id: p.id, label: p.cap, src: p.src })),
