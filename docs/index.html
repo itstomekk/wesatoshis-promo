@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#01020a">
 <meta property="og:title" content="Wesatoshis Card · Interactive 3D">
 <meta property="og:description" content="A pocket-sized Bitcoin card. Explore the hardware in 3D — outside, inside and exploded.">
-<link rel="stylesheet" href="style.css?release=1e34a9e">
+<link rel="stylesheet" href="style.css?release=r3-alt-layers">
 <link rel="icon" href="assets/logo_ws.png">
 <script type="importmap">
 { "imports": {
@@ -52,7 +52,7 @@
       <p id="explain-d"></p>
     </div>
 
-    <p id="explode-readout" class="readout" aria-hidden="true">Explode <b id="explode-pct">0%</b></p>
+    <p id="explode-readout" class="readout" aria-hidden="true"><span id="readout-k">Explode</span> <b id="explode-pct">0%</b></p>
     <p id="explode-status" class="sr-only" role="status" aria-live="polite"></p>
 
     <button id="feat-toggle" class="feat-toggle" type="button" aria-expanded="false" aria-controls="sidebar">Explore</button>
@@ -93,6 +93,7 @@
               <dt>Look around</dt><dd>Drag to orbit · scroll or pinch to zoom</dd>
               <dt>Explode</dt><dd><kbd>Ctrl</kbd> + scroll · two-finger drag up/down · <kbd>[</kbd> <kbd>]</kbd> or <kbd>Ctrl</kbd> + <kbd>↑</kbd> <kbd>↓</kbd></dd>
               <dt>See inside</dt><dd>Hold <kbd>Shift</kbd> · touch and hold the scene · <kbd>I</kbd> toggles</dd>
+              <dt>Labels &amp; layers</dt><dd>Tap <kbd>Alt</kbd> to show or hide labels · <kbd>Alt</kbd> + scroll (or <kbd>G</kbd>) shows one group of layers at a time</dd>
               <dt>Use the card</dt><dd>Press its four buttons in the 3D view · tap its camera for a selfie · tap its speaker for sound on/off (turn the card over first)</dd>
               <dt>Keys</dt><dd><kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd> orbit · <kbd>+</kbd><kbd>-</kbd> zoom · <kbd>L</kbd> labels · <kbd>A</kbd> auto-rotate · <kbd>Esc</kbd> close</dd>
             </dl>
@@ -286,7 +287,7 @@
 
 </div>
 
-<script src="panels.js?release=1e34a9e"></script>
-<script type="module" src="app.js?release=1e34a9e"></script>
+<script src="panels.js?release=r3-alt-layers"></script>
+<script type="module" src="app.js?release=r3-alt-layers"></script>
 </body>
 </html>

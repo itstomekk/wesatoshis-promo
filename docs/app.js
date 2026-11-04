@@ -688,14 +688,14 @@ function setMode(mode, opts = {}) {
   inside.prev = null; applyInside();   // a held Shift / touch-hold stays in force over the new view
 }
 /* ---- explode: Ctrl + mouse wheel (gradual), two-finger drag, [ ] or Ctrl+Up/Down; see inside: hold Shift / touch-and-hold / I ---- */
-const readout = $('#explode-readout'), readoutPct = $('#explode-pct'), exStatus = $('#explode-status');
+const readout = $('#explode-readout'), readoutK = $('#readout-k'), readoutPct = $('#explode-pct'), exStatus = $('#explode-status');
 let readoutTimer = null, statusTimer = null;
 function setExplode(v) {
   v = clamp(v, 0, 1); if (v === S.explodeT) { showReadout(); return; }
   S.explodeT = v; lastTouch = performance.now(); showReadout();
 }
 function showReadout() {
-  const pct = Math.round(S.explodeT * 100); readoutPct.textContent = pct + '%'; readout.classList.add('show');
+  const pct = Math.round(S.explodeT * 100); readoutK.textContent = 'Explode'; readoutPct.textContent = pct + '%'; readout.classList.add('show');
   clearTimeout(readoutTimer); readoutTimer = setTimeout(() => readout.classList.remove('show'), 1300);
   clearTimeout(statusTimer); statusTimer = setTimeout(() => { exStatus.textContent = 'Explode ' + pct + '%'; }, 500);
 }
@@ -708,6 +708,48 @@ stage.addEventListener('wheel', e => {
 }, { capture: true, passive: false });
 // Shift / Ctrl must not turn the left-button drag into OrbitControls' (disabled) pan: hide the modifiers from it
 canvas.addEventListener('pointerdown', e => { if (e.pointerType === 'mouse' && (e.shiftKey || e.ctrlKey || e.metaKey)) for (const k of ['shiftKey', 'ctrlKey', 'metaKey']) Object.defineProperty(e, k, { value: false }); }, { capture: true });
+
+/* ---- layer groups: Alt + mouse wheel over the stage (or G / Shift+G) shows one group of layers at a time; a tap of Alt alone toggles labels ---- */
+const GROUPS = [
+  { name: 'All layers', keys: null },
+  { name: 'Cover & window', keys: ['window', 'screws', 'cover'] },
+  { name: 'Circuit board', keys: ['pcb'] },
+  { name: 'Battery', keys: ['battery'] },
+  { name: 'Back shell', keys: ['inserts', 'shell'] },
+];
+let groupIx = 0;
+const layerKeyOf = o => { for (let p = o; p; p = p.parent) if (p.parent === model && p.name in LAYERS) return p.name; return null; };
+const groupShows = o => { const g = GROUPS[groupIx].keys; if (!g || !o) return true; const k = layerKeyOf(o); return !k || g.includes(k); };
+function setGroup(i) {
+  groupIx = (i + GROUPS.length) % GROUPS.length; const g = GROUPS[groupIx].keys;
+  // hidden layers move to three.js layer 1: the camera and every raycaster only see layer 0, so they are neither drawn nor clickable
+  for (const k in LAYERS) { const on = !g || g.includes(k); layer[k].traverse(o => o.layers.set(on ? 0 : 1)); }
+  lastTouch = performance.now(); if (compHover && !groupShows(nodes[COMP[compHover].node])) setHover(null, hoverSrc || 'canvas');
+  readoutK.textContent = 'Layers'; readoutPct.textContent = GROUPS[groupIx].name; readout.classList.add('show');
+  clearTimeout(readoutTimer); readoutTimer = setTimeout(() => readout.classList.remove('show'), 1600);
+  exStatus.textContent = 'Showing ' + GROUPS[groupIx].name;
+}
+const toggleLabels = () => $('#labels').click();
+{
+  let altTap = false, wheelAcc = 0, wheelAt = 0;
+  addEventListener('keydown', e => { if (e.key === 'Alt') { if (!e.repeat) altTap = !e.ctrlKey && !e.shiftKey && !e.metaKey; e.preventDefault(); } else altTap = false; }, { capture: true });
+  addEventListener('keyup', e => {
+    if (e.key !== 'Alt') return; e.preventDefault();   // also keeps Windows/Firefox from focusing the menu bar
+    const a = document.activeElement, calm = !(a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || a.isContentEditable));
+    if (altTap && calm && intro.phase === 'complete') toggleLabels();
+    altTap = false;
+  }, { capture: true });
+  ['pointerdown', 'wheel'].forEach(t => addEventListener(t, () => { altTap = false; }, { capture: true, passive: true }));
+  addEventListener('blur', () => { altTap = false; });
+  stage.addEventListener('wheel', e => {
+    if (!e.altKey || e.ctrlKey || e.metaKey || inSidebar(e.target)) return;
+    e.preventDefault(); e.stopImmediatePropagation();   // Alt+wheel would otherwise zoom, or go back in history in some browsers
+    if (intro.phase !== 'complete') return;
+    const now = performance.now(); if (now - wheelAt > 400) wheelAcc = 0; wheelAt = now;
+    wheelAcc += wheelPx(e);
+    if (Math.abs(wheelAcc) >= 60) { setGroup(groupIx + Math.sign(wheelAcc)); wheelAcc = 0; }
+  }, { capture: true, passive: false });
+}
 
 /* inside view = the 'inside' mode (cover ghosted) while a hold is active, then back to what it was */
 const inside = { shift: false, touch: false, key: false, prev: null };
@@ -785,6 +827,7 @@ addEventListener('keydown', e => {
     case '2': S.flip = false; setMode('inside'); break;
     case '3': S.flip = false; setMode('exploded'); break;
     case 'l': case 'L': $('#labels').click(); break;
+    case 'g': case 'G': if (intro.phase === 'complete') setGroup(groupIx + (e.shiftKey ? -1 : 1)); break;
     case 'a': case 'A': $('#spin').click(); break;
     default: return;
   }
@@ -1004,6 +1047,7 @@ function compAt(cx, cy, slack = 14) {
   // forgiving target: the parts are only a few millimetres across, so a point just beside one counts too, if its centre is visible
   let best = null, bd = slack;
   for (const id of compIds) {
+    if (!groupShows(nodes[COMP[id].node])) continue;   // parts in a hidden layer group cannot be picked
     const p = compClient(id); if (p.z > 1) continue; const d = Math.hypot(cx - p.x, cy - p.y); if (d >= bd) continue;
     const c = compCenter(id), dir = c.clone().sub(camera.position), dist = dir.length(); dir.normalize();
     rc.set(camera.position, dir); rc.far = dist - .02;
@@ -1082,7 +1126,9 @@ function pressCap(k) { const n = Object.keys(CAPKEY).find(x => CAPKEY[x] === k);
 
 /* ------------------------------------------------------------------ main loop */
 const sway = { base: null, phase: 0 };   // legacy marker, no longer drives the camera
-const AUTO_SPEED = 1.5;                 // OrbitControls units: 2.0 = one turn per 30 s at 60 fps; this is one turn per 40 s
+const AUTO_SPEED = 0.4;                 // OrbitControls units: 2.0 = one turn per 30 s at 60 fps; this is one turn per 150 s
+const AUTO_RAMP_S = 4;                  // after the visitor lets go, the turntable eases in over this many seconds
+let autoRamp = 0;
 const clock = new THREE.Clock(); const tmpV = new THREE.Vector3(), rc = new THREE.Raycaster(); let lastOcc = 0, lastScr = performance.now();
 const baseCapY = {};
 
@@ -1122,7 +1168,7 @@ function tick() {
   stepIntro(now);
   if (rm) { hover.x = hover.y = 0; hover.rx = hover.ry = 0; }
   else {
-    const k = 1 - Math.exp(-dt * 5), active = intro.phase === 'complete';
+    const k = 1 - Math.exp(-dt * 1.2), active = intro.phase === 'complete';   // slow, soft sway toward the pointer
     hover.rx += ((active ? -hover.y * .025 : 0) - hover.rx) * k;
     hover.ry += ((active ? hover.x * .035 : 0) - hover.ry) * k;
   }
@@ -1141,8 +1187,10 @@ function tick() {
   // ground follows the lowest layer
   ground.position.y = -.74 + LAYERS.shell.off * t - .5; ground.scale.setScalar(1 + .25 * t); ground.material.opacity = .95 - .2 * t;
   // auto-rotate: OrbitControls' own turntable, identical with or without prefers-reduced-motion; runs when Auto is on and the visitor has been idle
-  controls.autoRotate = S.auto && intro.phase === 'complete' && !tw && !S.sel && !gagOn() && !document.hidden && now - lastTouch > 2500;
-  controls.autoRotateSpeed = AUTO_SPEED;
+  const autoOn = S.auto && intro.phase === 'complete' && !tw && !S.sel && !gagOn() && !document.hidden && now - lastTouch > 2500;
+  autoRamp = autoOn ? Math.min(1, autoRamp + dt / AUTO_RAMP_S) : 0;
+  controls.autoRotate = autoOn;
+  controls.autoRotateSpeed = AUTO_SPEED * autoRamp * autoRamp * (3 - 2 * autoRamp);   // smoothstep ease-in
   controls.update(rawDt);
   if (intro.phase === 'complete') { pickHover(now); placeComp(now); updateHotspots(now); updatePhoto(); }
   sky.stars.position.copy(camera.position);
@@ -1160,6 +1208,7 @@ function updateHotspots(now) {
     const el = hsEls[hs.id]; if (!el) continue;
     let vis = !!show && !(S.sel === 'oled' && hs.id === 'oled') && (!S.sel || S.sel === hs.id) && (exploded || inside ? !(inside && !exploded && hs.noInside) : !!(hs.outside && hs.pr <= 1));
     if (small && (exploded || inside) && hs.pr > 1 && !hs.act) vis = false;
+    if (!groupShows(anchors[hs.id])) vis = false;   // labels follow the layer group on show
     let x = 0, y = 0;
     if (vis) {
       anchors[hs.id].getWorldPosition(tmpV);
@@ -1234,7 +1283,7 @@ function updateHotspots(now) {
   renderer.setAnimationLoop(tick);
   window.__viz = { S, M, scene, nodes, setMode, select, camera, controls, drawScreen, THREE, renderer, layer, anchors, sky,
     sound, intro: { state: () => ({ phase: intro.phase, spread: intro.spread }), skip: finishIntro }, inside: () => ({ on: insideOn(), prev: inside.prev, ...inside }), setExplode, explode: () => ({ target: S.explodeT, current: S.explode }), input: { touchDown, touchMove, touchUp }, screens: SCREENS, screenCanvas: scrCanvas, screenText: i => { drawScreen(i); return texts.slice(); }, currentScreen: () => curScreen, viewShift: () => view.cur,
-    capClient, comp: { at: compAt, client: compClient, hover: () => compHover, activate, selfie, tipText, gagWeight: () => gag.w, autoRotating: () => controls.autoRotate },
+    capClient, groups: { set: setGroup, get: () => groupIx, names: GROUPS.map(g => g.name), shows: groupShows }, comp: { at: compAt, client: compClient, hover: () => compHover, activate, selfie, tipText, gagWeight: () => gag.w, autoRotating: () => controls.autoRotate },
     ui: { states: () => Object.keys(UI), state: () => dev.cur, data: () => JSON.parse(snapshot()), key: devKey, snapshot, restore, stats: paintStats, go, setManual: v => { manualTimers = !!v; clearTimeout(dev.timer); }, setTimerScale: v => { timerScale = v; }, fireAuto: () => { const u = UI[dev.cur]; if (u.auto) go(u.auto.to); }, hasAuto: () => !!UI[dev.cur].auto, announced: () => announced, setPay: (k, f) => { dev.payKind = k; dev.payFrom = f; } } };
   window.__product = {
     photos: PHOTOS.map(p => ({ id: p.id, label: p.cap, src: p.src })),
